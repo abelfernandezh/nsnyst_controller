@@ -1,0 +1,9 @@
+# Filenames and Folders
+
+.DS_Store
+.idea
+__pycache__
+
+# Extensions
+
+*.pyc
