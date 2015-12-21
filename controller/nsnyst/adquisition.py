@@ -1,12 +1,20 @@
+""" nsnyst.adquisition
+
+This module is in charge of the communications with the amplifier device.
+"""
+
+__author__ = 'Carlos Cano Domingo <carcandom@uma.es>'
+
 from numpy import zeros, int16
 from multiprocessing import Queue, Process
 from serial import Serial
 from time import sleep
 
-__author__ = 'Carlos Cano Domingo <carcandom@uma.es>'
 
+class Adquirer(Process):
+    """ Signal acquisition from the amplifier
+    """
 
-class Recorder(Process):
     ADC_START_COMMAND = 'S'
     ADC_STOP_COMMAND = 'F'
     ADC_TIMEOUT = 0.02
@@ -22,7 +30,16 @@ class Recorder(Process):
     PORT_NOT_OPENED_EXIT_CODE = 2
     READ_ERROR_EXIT_CODE = 3
 
-    def __init__(self, port, handler, blockcount=1, timelimit=5):
+    def __init__(self, port: str, handler: callable, blockcount:int=1, timelimit:int=5):
+        """ Constructor
+
+        :port: Input device port
+        :handler: Data handler function
+        :blockcount: Number of blocks in the buffer
+        :timelimit: Acquisition length in seconds
+
+        Buffer length is defined by the value of blockcount * RECORDER_BLOCKSIZE.
+        """
         self.q = Queue()
         self.port = port
         self.handler = handler
@@ -36,9 +53,13 @@ class Recorder(Process):
         Process.__init__(self)
 
     def stop(self):
+        """ Stop adquisition
+        """
         self.q.put(Recorder.RECORDER_STOP_COMMAND)
 
     def run(self):
+        """ Start adquisition
+        """
         self.exit_code = Recorder.OK_EXIT_CODE
         serial = Serial(self.port,
                         baudrate=Recorder.SERIAL_BAUDRATE,
@@ -91,7 +112,12 @@ class Recorder(Process):
             raise Exception('Port not opened error')
 
     def was_recording_ok(self):
+        """ Returns if the recording was successfull or not
+        """
         return (self.exit_code == Recorder.OK_EXIT_CODE) or (self.exit_code == Recorder.STOPPED_EXIT_CODE)
+
+
+# Example block
 
 f = open('data_out.txt', 'wt')
 
