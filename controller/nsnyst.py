@@ -2,7 +2,7 @@ from sys import argv
 
 from PyQt4.QtGui import QApplication
 
-from nsnyst.gui import MainWindow
+from controller.nsnyst.gui import MainWindow
 
 
 if __name__ == '__main__':
