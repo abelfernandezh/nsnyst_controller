@@ -1,5 +1,4 @@
 from PyQt4.QtGui import QMainWindow, QToolBar
-import qtawesome
 
 
 class MainWindow(QMainWindow):
