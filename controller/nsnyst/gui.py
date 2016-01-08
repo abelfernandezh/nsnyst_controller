@@ -120,6 +120,7 @@ class CreateStimuliWidget(QDialog):
         self.save_button = QPushButton(fa_save, 'Guardar')
         self.save_button.setMaximumWidth(100)
 
+
         self.generic.type.currentIndexChanged.connect(self.on_index_change)
 
     def save_stimuli(self):
