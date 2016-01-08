@@ -1,10 +1,32 @@
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QFrame, QSizePolicy, QPushButton
 from PyQt4.QtCore import QSize
-import controller.artwork.icons as fa
+import artwork.icons as fa
+
+
+class SaccadicStimuliParametersWidget(QWidget):
+
+    def __init__(self, parent=None):
+        """ Aquí construyes solamente los componentes
+        """
+        pass
+
+
+    @property
+    def velocity(self):
+        pass
+
+    @property
+    def amplitude(self):
+        pass
+
+
+class FixationStimuliParametersWidget(QWidget):
+    pass
 
 
 class CreateStimuliWidget(QDialog):
+
     def __init__(self, parent=None):
         super(QDialog, self).__init__(parent)
         self.setWindowTitle('Crear nuevo estímulo')
@@ -71,19 +93,19 @@ class CreateStimuliWidget(QDialog):
         self.advanced_properties_stack.setCurrentIndex(0)
         self.setLayout(self.h_layout)
 
-        def save_stimuli(self):
-            pass
 
         fa_save = fa.icon('fa.save')
         self.save_button = QPushButton(fa_save, 'Guardar')
         self.save_button.setMaximumWidth(100)
         self.h_layout.addRow(self.save_button)
 
-        def on_index_change(self):
-            self.advanced_properties_stack.setCurrentIndex(self.type.currentIndex())
-
         self.type.currentIndexChanged.connect(on_index_change)
 
+    def save_stimuli(self):
+        pass
+
+    def on_index_change(self):
+        self.advanced_properties_stack.setCurrentIndex(self.type.currentIndex())
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
