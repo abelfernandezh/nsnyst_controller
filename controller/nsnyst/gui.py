@@ -1,72 +1,74 @@
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
-    QStackedWidget, QWidget, QFrame, QSizePolicy, QPushButton
+    QStackedWidget, QWidget, QFrame, QSizePolicy, QPushButton, QHBoxLayout
 from PyQt4.QtCore import QSize
 import artwork.icons as fa
+from stimulation import Channel
 
 
-class SaccadicStimuliParametersWidget(QWidget):
-
+class GenericParametersWidget(QWidget):
     def __init__(self, parent=None):
-        """ Aquí construyes solamente los componentes
-        """
-        pass
-
-
-    @property
-    def velocity(self):
-        pass
-
-    @property
-    def amplitude(self):
-        pass
-
-
-class FixationStimuliParametersWidget(QWidget):
-    pass
-
-
-class CreateStimuliWidget(QDialog):
-
-    def __init__(self, parent=None):
-        super(QDialog, self).__init__(parent)
-        self.setWindowTitle('Crear nuevo estímulo')
-
-        self.setMinimumWidth(400)
-
-        self.h_layout = QFormLayout()
-
-        self.name_input = QLineEdit()
-        self.h_layout.addRow('Nombre', self.name_input)
-        self.horizontal_channel = QCheckBox()
-        self.h_layout.addRow('Canal Horizontal', self.horizontal_channel)
-        self.vertical_channel = QCheckBox()
-        self.h_layout.addRow('Canal Vertical', self.vertical_channel)
-        self.duration = QSpinBox()
-        self.duration.setRange(1, 500)
-        self.duration.setMaximumWidth(100)
-        self.h_layout.addRow('Duración', self.duration)
+        super(GenericParametersWidget, self).__init__(parent)
+        self.f_layout = QFormLayout()
         self.type = QComboBox()
         self.type.addItem('Prueba Sacádica')
         self.type.addItem('Prueba de Persecución')
-        self.h_layout.addRow('Tipo de Prueba', self.type)
+        self.f_layout.addRow('Tipo de Prueba', self.type)
+        self.stimulus_name = QLineEdit()
+        self.f_layout.addRow('Nombre', self.stimulus_name)
+        self.horizontal_channel = QCheckBox()
+        self.f_layout.addRow('Canal Horizontal', self.horizontal_channel)
+        self.vertical_channel = QCheckBox()
+        self.f_layout.addRow('Canal Vertical', self.vertical_channel)
+        self.stimulus_duration = QSpinBox()
+        self.stimulus_duration.setRange(1, 500)
+        self.stimulus_duration.setMaximumWidth(100)
+        self.f_layout.addRow('Duración', self.stimulus_duration)
 
+        self.setLayout(self.f_layout)
+
+    @property
+    def name(self):
+        return self.stimulus_name.value()
+
+    @property
+    def duration(self):
+        return self.stimulus_duration.value()
+
+    @property
+    def channels(self):
+        if self.vertical_channel.isChecked() and self.horizontal_channel.isChecked():
+            return 0
+        if self.vertical_channel.isChecked():
+            return Channel.Vertical_Channel
+        if self.horizontal_channel.isChecked():
+            return Channel.Horizontal_Channel
+
+
+class SaccadicStimuliParametersWidget(QWidget):
+    def __init__(self, parent=None):
+        super(SaccadicStimuliParametersWidget, self).__init__(parent)
         self.saccadic_amplitude = QSpinBox()
         self.saccadic_amplitude.setMaximumWidth(100)
         self.saccadic_velocity = QSpinBox()
         self.saccadic_velocity.setMaximumWidth(100)
 
-        self.saccadic_stack = QWidget()
-
-        self.s_layout = QFormLayout()
-
-        self.s_layout.addRow('Velocidad', self.saccadic_velocity)
-        self.s_layout.addRow('Amplitud', self.saccadic_amplitude)
-
-        self.saccadic_stack.setLayout(self.s_layout)
-
-        self.fixation_stack = QWidget()
         self.f_layout = QFormLayout()
+        self.f_layout.addRow('Amplitud', self.saccadic_amplitude)
+        self.f_layout.addRow('Velocidad', self.saccadic_velocity)
+        self.setLayout(self.f_layout)
 
+    @property
+    def velocity(self):
+        return self.saccadic_velocity.value()
+
+    @property
+    def amplitude(self):
+        self.saccadic_amplitude.value()
+
+
+class FixationStimuliParametersWidget(QWidget):
+    def __init__(self, parent=None):
+        super(FixationStimuliParametersWidget, self).__init__(parent)
         self.fixation_duration = QSpinBox()
         self.fixation_duration.setMaximumWidth(100)
         self.fixation_amplitude = QSpinBox()
@@ -74,38 +76,58 @@ class CreateStimuliWidget(QDialog):
         self.fixation_variation = QSpinBox()
         self.fixation_variation.setMaximumWidth(100)
 
+        self.f_layout = QFormLayout()
         self.f_layout.addRow('Duración', self.fixation_duration)
         self.f_layout.addRow('Amplitud', self.fixation_amplitude)
         self.f_layout.addRow('Variación', self.fixation_variation)
+        self.setLayout(self.f_layout)
 
-        self.fixation_stack.setLayout(self.f_layout)
+    @property
+    def duration(self):
+        return self.fixation_duration.value()
+
+    @property
+    def amplitude(self):
+        return self.fixation_amplitude.value()
+
+    @property
+    def variation(self):
+        return self.fixation_variation.value()
+
+
+class CreateStimuliWidget(QDialog):
+    def __init__(self, parent=None):
+        super(QDialog, self).__init__(parent)
+        self.setWindowTitle('Crear nuevo estímulo')
+        self.generic = GenericParametersWidget()
+        self.fixation_features = FixationStimuliParametersWidget()
+        self.saccadic_features = SaccadicStimuliParametersWidget()
+
+        self.setMinimumWidth(400)
+
+        self.h_layout = QHBoxLayout()
 
         self.advanced_properties_stack = QStackedWidget()
-        self.advanced_properties_stack.addWidget(self.saccadic_stack)
-        self.advanced_properties_stack.addWidget(self.fixation_stack)
+        self.advanced_properties_stack.addWidget(self.fixation_features)
+        self.advanced_properties_stack.addWidget(self.saccadic_features)
 
-        self.h_line = QFrame()
-        self.h_line.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
-
-        self.h_layout.addRow(self.h_line)
-
-        self.h_layout.addRow('Detalles', self.advanced_properties_stack)
+        self.h_layout.addWidget(self.generic)
+        self.h_layout.addWidget(self.advanced_properties_stack)
         self.advanced_properties_stack.setCurrentIndex(0)
         self.setLayout(self.h_layout)
-
 
         fa_save = fa.icon('fa.save')
         self.save_button = QPushButton(fa_save, 'Guardar')
         self.save_button.setMaximumWidth(100)
-        self.h_layout.addRow(self.save_button)
 
-        self.type.currentIndexChanged.connect(on_index_change)
+        self.generic.type.currentIndexChanged.connect(self.on_index_change)
 
     def save_stimuli(self):
         pass
 
     def on_index_change(self):
-        self.advanced_properties_stack.setCurrentIndex(self.type.currentIndex())
+        self.advanced_properties_stack.setCurrentIndex(self.generic.type.currentIndex())
+
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
