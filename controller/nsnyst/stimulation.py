@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class Chanel(Enum):
+class Channel(Enum):
     Horizontal_Channel = 1
     Vertical_Channel = 2
 
