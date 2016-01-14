@@ -11,7 +11,7 @@ class Channel(Enum):
 class Stimulus:
     def __init__(self, name, duration, channel=0):
         self.name = name
-        self.chanel = channel
+        self.channel = channel
         self.duration = duration
 
 
@@ -23,12 +23,8 @@ class SaccadicStimulus(Stimulus):
 
     @property
     def information(self):
-        information = []
-        information.name = self.name
-        information.duration = self.duration
-        information.amplitude = self.amplitude
-        information.velocity = self.velocity
-        information.channel = self.chanel
+        information = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
+                       'velocity': self.velocity, 'channel': self.channel}
         return information
 
 
@@ -41,20 +37,16 @@ class FixationStimulus(Stimulus):
 
     @property
     def information(self):
-        information = []
-        information.name = self.name
-        information.duration = self.duration
-        information.amplitude = self.amplitude
-        information.fixation_duration = self.fixation_duration
-        information.variation = self.variation
-        return information
+        stimulus = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
+                    'fixation_duration': self.fixation_duration, 'variation': self.variation}
+        return stimulus
 
 
 class Protocol:
     def __init__(self, name, notes):
         self.protocol_name = name
         self.protocol_notes = notes
-        self.stimuli = array()
+        self.stimuli = []
 
     @property
     def name(self):
@@ -66,20 +58,19 @@ class Protocol:
 
     @property
     def information(self):
-        protocol = []
-        protocol.name = self.name
-        protocol.notes = self.notes
-        protocol.saccadic_stimuli = array()
-        protocol.fixation_stimuli = array()
+        protocol = {'name': self.name, 'notes': self.notes, 'saccadic_stimuli': [], 'fixation_stimuli': []}
 
         for stimulus in self.stimuli:
             if type(stimulus) == SaccadicStimulus:
-                protocol.saccadic_stimuli.append(stimulus)
+                protocol['saccadic_stimuli'].append(stimulus.information)
             else:
-                protocol.fixation_stimuli.append(stimulus)
+                protocol['fixation_stimuli'].append(stimulus.information)
+
+        return protocol
 
     def add_stimulus(self, stimulus):
         self.stimuli.append(stimulus)
 
     def save(self):
-        pass
+        print(self.information)
+        json.dump(self.information, open('file.txt', 'w'))

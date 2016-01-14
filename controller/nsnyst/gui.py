@@ -2,7 +2,7 @@ from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QL
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit
 from PyQt4.QtCore import QSize
 import artwork.icons as fa
-from stimulation import Channel, Stimulus, SaccadicStimulus
+from stimulation import Channel, SaccadicStimulus, Protocol
 
 
 class GenericParametersWidget(QWidget):
@@ -168,7 +168,10 @@ class CreateProtocolWidget(QDialog):
         self.protocol_notes = QTextEdit()
         self.protocol_notes.setMaximumHeight(50)
 
-        stimulus = SaccadicStimulus('Ejemplo 1', 12, 12, 12, Channel.Horizontal_Channel)
+        stimulus = SaccadicStimulus('Ejemplo 1', 12, 12, 12, 1)
+        protocol = Protocol('Prueba', 'Proasdad')
+        protocol.add_stimulus(stimulus)
+        protocol.save()
         self.sti = StimulusWidget(stimulus)
 
         self.f_layout.addRow('Nombre', self.protocol_name)
