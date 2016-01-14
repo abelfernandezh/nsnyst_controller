@@ -1,5 +1,4 @@
 from enum import Enum
-from numpy import array
 import json
 
 
@@ -72,5 +71,4 @@ class Protocol:
         self.stimuli.append(stimulus)
 
     def save(self):
-        print(self.information)
-        json.dump(self.information, open('file.txt', 'w'))
+        json.dump(self.information, open(self.name + '.protocol', 'w'))
