@@ -51,10 +51,11 @@ class Protocol:
         protocol.notes = self.notes
         protocol.stimuli = array()
 
-        for stimulus in stimulus
-        return protocol
+        for stimulus in self.stimuli:
+            break
 
     def add_stimulus(self, stimulus):
         self.stimuli.append(stimulus)
 
     def save(self):
+        pass
