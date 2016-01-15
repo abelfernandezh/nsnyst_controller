@@ -71,4 +71,4 @@ class Protocol:
         self.stimuli.append(stimulus)
 
     def save(self):
-        json.dump(self.information, open(self.name + '.protocol', 'w'), sort_keys=False, indent=4)
+        json.dump(self.information, open(self.name + '.json', 'w'), sort_keys=False, indent=4)
