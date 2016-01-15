@@ -62,8 +62,8 @@ class Protocol:
         for stimulus in self.stimuli:
             if type(stimulus) == SaccadicStimulus:
                 protocol['saccadic_stimuli'].append(stimulus.information)
-            else:
-                protocol['fixation_stimuli'].append(stimulus.information)
+        else:
+            protocol['fixation_stimuli'].append(stimulus.information)
 
         return protocol
 
@@ -71,4 +71,4 @@ class Protocol:
         self.stimuli.append(stimulus)
 
     def save(self):
-        json.dump(self.information, open(self.name + '.protocol', 'w'))
+        json.dump(self.information, open(self.name + '.protocol', 'w'), sort_keys=False, indent=4)
