@@ -1,5 +1,5 @@
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
-    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit
+    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QDesktopWidget
 from PyQt4.QtCore import QSize
 import artwork.icons as fa
 from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
@@ -37,7 +37,7 @@ class GenericParametersWidget(QWidget):
     @property
     def channels(self):
         if self.vertical_channel.isChecked() and self.horizontal_channel.isChecked():
-            return 0
+        return 0
         if self.vertical_channel.isChecked():
             return Channel.Vertical_Channel
         if self.horizontal_channel.isChecked():
@@ -196,7 +196,7 @@ class MainWindow(QMainWindow):
 
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
-
+        self.desk = QDesktopWidget()
         self.create_protocol = CreateProtocolWidget()
 
         self.tool_bar = QToolBar()
