@@ -15,15 +15,15 @@ class Stimulus:
 
 
 class SaccadicStimulus(Stimulus):
-    def __init__(self, name, duration, amplitude, velocity, channel=0):
+    def __init__(self, name, duration, amplitude, variation, channel=0):
         super(SaccadicStimulus, self).__init__(name, duration, channel)
         self.amplitude = amplitude
-        self.velocity = velocity
+        self.variation = variation
 
     @property
     def information(self):
         information = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
-                       'velocity': self.velocity, 'channel': self.channel}
+                       'variation': self.variation, 'channel': self.channel}
         return information
 
 
@@ -38,6 +38,19 @@ class FixationStimulus(Stimulus):
     def information(self):
         stimulus = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
                     'fixation_duration': self.fixation_duration, 'variation': self.variation}
+        return stimulus
+
+
+class PursuitStimulus(Stimulus):
+    def __init__(self, name, duration, amplitude, velocity, channel=0):
+        super(PursuitStimulus, self).__init__(name, duration, channel)
+        self.amplitude = amplitude
+        self.velocity = velocity
+
+    @property
+    def information(self):
+        stimulus = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
+                    'velocity': self.velocity}
         return stimulus
 
 
@@ -71,4 +84,4 @@ class Protocol:
         self.stimuli.append(stimulus)
 
     def save(self):
-        json.dump(self.information, open(self.name + '.json', 'w'), sort_keys=False, indent=4)
+        json.dump(self.information, open(self.name + '.', 'w'), sort_keys=False, indent=4)

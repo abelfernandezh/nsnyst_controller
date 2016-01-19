@@ -2,7 +2,7 @@ from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QL
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit
 from PyQt4.QtCore import QSize
 import artwork.icons as fa
-from stimulation import Channel, SaccadicStimulus, Protocol
+from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
 
 
 class GenericParametersWidget(QWidget):

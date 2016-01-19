@@ -1,0 +1,22 @@
+{
+    "notes": "Proasdad",
+    "name": "Prueba",
+    "saccadic_stimuli": [
+        {
+            "channel": 1,
+            "variation": 12,
+            "name": "Ejemplo 1",
+            "amplitude": 12,
+            "duration": 12
+        }
+    ],
+    "fixation_stimuli": [
+        {
+            "channel": 1,
+            "variation": 12,
+            "name": "Ejemplo 1",
+            "amplitude": 12,
+            "duration": 12
+        }
+    ]
+}
