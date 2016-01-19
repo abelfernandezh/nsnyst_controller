@@ -1,8 +1,10 @@
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
-    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QDesktopWidget
-from PyQt4.QtCore import QSize
+    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QDesktopWidget, QMessageBox, QPainter, QColor, \
+    QFont, QBrush, QPen, QGraphicsScene
+from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal
 import artwork.icons as fa
-from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
+from stimulation import Channel, SaccadicStimulus, Protocol
+import random
 
 
 class GenericParametersWidget(QWidget):
@@ -37,7 +39,7 @@ class GenericParametersWidget(QWidget):
     @property
     def channels(self):
         if self.vertical_channel.isChecked() and self.horizontal_channel.isChecked():
-        return 0
+            return 0
         if self.vertical_channel.isChecked():
             return Channel.Vertical_Channel
         if self.horizontal_channel.isChecked():
@@ -171,7 +173,6 @@ class CreateProtocolWidget(QDialog):
         stimulus = SaccadicStimulus('Ejemplo 1', 12, 12, 12, 1)
         protocol = Protocol('Prueba', 'Proasdad')
         protocol.add_stimulus(stimulus)
-        protocol.save()
         self.sti = StimulusWidget(stimulus)
 
         self.f_layout.addRow('Nombre', self.protocol_name)
@@ -190,15 +191,57 @@ class CreateProtocolWidget(QDialog):
         return self.protocol_notes.toPlainText()
 
 
+class RepaintThread(QThread):
+    repaintSignal = pyqtSignal()
+
+    def __init__(self):
+        QThread.__init__(self)
+
+    def run(self):
+        while True:
+            self.repaintSignal.emit()
+            self.sleep(2)
+
+
+class StimulatorWidget(QWidget):
+    def __init__(self, parent=None):
+        super(StimulatorWidget, self).__init__(parent)
+        self.screen = QDesktopWidget().screenGeometry(1)
+        self.move(self.screen.left(), self.screen.top())
+        self.resize(self.screen.width(), self.screen.height())
+        self.thread = RepaintThread()
+        self.thread.start()
+        self.thread.repaintSignal.connect(self.show_paint)
+        self.diff = 500
+
+    def paintEvent(self, event):
+        qp = QPainter(self)
+        qp.fillRect(0, 0, self.screen.width(), self.screen.height(), QColor(255, 255, 255))
+        qp.setPen(QColor(25, 25, 112))
+        qp.setBrush(QBrush(QColor(25, 25, 112)))
+        qp.drawEllipse(self.screen.width() / 2 + self.diff, self.screen.height() / 2, 30, 30)
+
+    def show_paint(self):
+        self.diff *= -1
+        self.update()
+
+    def show_stimulator(self):
+        if QDesktopWidget().numScreens() is 1:
+            QMessageBox.warning(self, "Múltiples pantallas requeridas",
+                                "Para ejecutar esta funcionalidad se necesita otro monitor. " +
+                                "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
+        else:
+            self.showFullScreen()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
-        self.desk = QDesktopWidget()
         self.create_protocol = CreateProtocolWidget()
-
+        self.stimulator = StimulatorWidget()
+        self.stimulator.show_stimulator()
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
 
@@ -209,3 +252,6 @@ class MainWindow(QMainWindow):
         self.tool_bar.addAction(self.add_stimuli_action)
 
         self.addToolBar(self.tool_bar)
+
+    def closeEvent(self, *args, **kwargs):
+        self.stimulator.close()

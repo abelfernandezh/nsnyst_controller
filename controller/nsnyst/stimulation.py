@@ -62,8 +62,8 @@ class Protocol:
         for stimulus in self.stimuli:
             if type(stimulus) == SaccadicStimulus:
                 protocol['saccadic_stimuli'].append(stimulus.information)
-        else:
-            protocol['pursuit_stimuli'].append(stimulus.information)
+            else:
+                protocol['pursuit_stimuli'].append(stimulus.information)
 
         return protocol
 
