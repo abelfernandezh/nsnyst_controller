@@ -1,4 +1,5 @@
 from enum import Enum
+from math import radians
 import json
 
 
@@ -15,15 +16,15 @@ class Stimulus:
 
 
 class SaccadicStimulus(Stimulus):
-    def __init__(self, name, duration, amplitude, variation, saccade_duraration, channel=0):
+    def __init__(self, name, duration, amplitude, variation, fixation_duration, channel=0):
         super(SaccadicStimulus, self).__init__(name, duration, channel)
         self.amplitude = amplitude
+        self.fixation_duration = fixation_duration
         self.variation = variation
-        self.saccade_duration = saccade_duraration
 
     @property
     def information(self):
-        information = {'name': self.name, 'duration': self.duration, 'saccade_duration': self.saccade_duration,
+        information = {'name': self.name, 'duration': self.duration, 'fixation_duration': self.fixation_duration,
                        'amplitude': self.amplitude, 'variation': self.variation, 'channel': self.channel}
         return information
 
@@ -42,9 +43,10 @@ class PursuitStimulus(Stimulus):
 
 
 class Protocol:
-    def __init__(self, name, notes):
+    def __init__(self, name, notes, distance):
         self.protocol_name = name
         self.protocol_notes = notes
+        self.subject_distance = distance
         self.stimuli = []
 
     @property
@@ -54,6 +56,10 @@ class Protocol:
     @property
     def notes(self):
         return self.protocol_notes
+
+    @property
+    def distance(self):
+        return self.subject_distance
 
     @property
     def information(self):

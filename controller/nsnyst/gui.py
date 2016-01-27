@@ -1,9 +1,10 @@
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QFont, QBrush, QPen, QGraphicsScene
+    QBrush
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal
 import artwork.icons as fa
 from stimulation import Channel, SaccadicStimulus, Protocol
+from math import tan, atan, degrees, atan2, radians
 import random
 
 
@@ -171,7 +172,7 @@ class CreateProtocolWidget(QDialog):
         self.protocol_notes.setMaximumHeight(50)
 
         stimulus = SaccadicStimulus('Ejemplo 1', 12, 12, 12, 1)
-        protocol = Protocol('Prueba', 'Proasdad')
+        protocol = Protocol('Prueba', 'Proasdad', 12)
         protocol.add_stimulus(stimulus)
         self.sti = StimulusWidget(stimulus)
 
@@ -192,38 +193,65 @@ class CreateProtocolWidget(QDialog):
 
 
 class RepaintThread(QThread):
-    repaintSignal = pyqtSignal()
+    paintStimulus = pyqtSignal()
+    stopStimulus = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, saccadic_stimulus):
         QThread.__init__(self)
+        self.saccadic_stimulus = saccadic_stimulus
+        self.real_duration = 0
 
     def run(self):
         while True:
-            self.repaintSignal.emit()
-            self.sleep(2)
+            self.paintStimulus.emit()
+            self.real_duration = self.saccadic_stimulus.fixation_duration + (random.randrange(
+                    self.saccadic_stimulus.variation * 2)) - self.saccadic_stimulus.variation
+            self.msleep(self.real_duration)
+            self.saccadic_stimulus.duration -= self.real_duration
+
+        if self.saccadic_stimulus.duration <= 0:
+            self.stopStimulus.emit()
 
 
 class StimulatorWidget(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, screen_2_height_mm, screen_2_width_mm, parent=None):
         super(StimulatorWidget, self).__init__(parent)
         self.screen = QDesktopWidget().screenGeometry(1)
         self.move(self.screen.left(), self.screen.top())
+        self.height = self.screen.height()
+        self.width = self.screen.width()
         self.resize(self.screen.width(), self.screen.height())
-        self.thread = RepaintThread()
+        stimuli_test = SaccadicStimulus('Sacádica 30', 10000, 60, 20, 2000)
+        protocol = Protocol('Protocolo de Prueba', 'Este es un protocolo para probar el estímulo', 300)
+        protocol.add_stimulus(stimuli_test)
+        self.pixel_size = screen_2_width_mm / self.screen.width()
+        self.diff = (tan(radians(stimuli_test.amplitude)) * protocol.distance)
+        print(tan(radians(stimuli_test.amplitude)) * protocol.distance)
+
+        self.thread = RepaintThread(stimuli_test)
         self.thread.start()
-        self.thread.repaintSignal.connect(self.show_paint)
-        self.diff = 500
+        self.thread.paintStimulus.connect(self.show_paint)
+        self.thread.stopStimulus.connect(self.stop_paint)
+        self.should_paint = True
 
     def paintEvent(self, event):
         qp = QPainter(self)
         qp.fillRect(0, 0, self.screen.width(), self.screen.height(), QColor(255, 255, 255))
         qp.setPen(QColor(25, 25, 112))
         qp.setBrush(QBrush(QColor(25, 25, 112)))
-        qp.drawEllipse(self.screen.width() / 2 + self.diff, self.screen.height() / 2, 30, 30)
+        if self.should_paint:
+            qp.drawEllipse(self.screen.width() / 2 - 15 + self.diff, self.screen.height() / 2, 30, 30)
 
     def show_paint(self):
         self.diff *= -1
         self.update()
+
+    def stop_paint(self):
+        self.should_paint = False
+        self.update()
+
+    def paint_stimuli(self, protocol):
+        pass
 
     def show_stimulator(self):
         if QDesktopWidget().numScreens() is 1:
@@ -240,7 +268,7 @@ class MainWindow(QMainWindow):
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
         self.create_protocol = CreateProtocolWidget()
-        self.stimulator = StimulatorWidget()
+        self.stimulator = StimulatorWidget(268, 476)
         self.stimulator.show_stimulator()
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
