@@ -1,4 +1,5 @@
 from enum import Enum
+from math import radians
 import json
 
 
@@ -15,30 +16,17 @@ class Stimulus:
 
 
 class SaccadicStimulus(Stimulus):
-    def __init__(self, name, duration, amplitude, variation, channel=0):
+    def __init__(self, name, duration, amplitude, variation, fixation_duration, channel=0):
         super(SaccadicStimulus, self).__init__(name, duration, channel)
-        self.amplitude = amplitude
-        self.variation = variation
-
-    @property
-    def information(self):
-        information = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
-                       'variation': self.variation, 'channel': self.channel}
-        return information
-
-
-class FixationStimulus(Stimulus):
-    def __init__(self, name, duration, amplitude, fixation_duration, variation, channel=0):
-        super(FixationStimulus, self).__init__(name, duration, channel)
         self.amplitude = amplitude
         self.fixation_duration = fixation_duration
         self.variation = variation
 
     @property
     def information(self):
-        stimulus = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
-                    'fixation_duration': self.fixation_duration, 'variation': self.variation}
-        return stimulus
+        information = {'name': self.name, 'duration': self.duration, 'fixation_duration': self.fixation_duration,
+                       'amplitude': self.amplitude, 'variation': self.variation, 'channel': self.channel}
+        return information
 
 
 class PursuitStimulus(Stimulus):
@@ -55,9 +43,10 @@ class PursuitStimulus(Stimulus):
 
 
 class Protocol:
-    def __init__(self, name, notes):
+    def __init__(self, name, notes, distance):
         self.protocol_name = name
         self.protocol_notes = notes
+        self.subject_distance = distance
         self.stimuli = []
 
     @property
@@ -69,14 +58,18 @@ class Protocol:
         return self.protocol_notes
 
     @property
+    def distance(self):
+        return self.subject_distance
+
+    @property
     def information(self):
-        protocol = {'name': self.name, 'notes': self.notes, 'saccadic_stimuli': [], 'fixation_stimuli': []}
+        protocol = {'name': self.name, 'notes': self.notes, 'saccadic_stimuli': [], 'pursuit_stimulus': []}
 
         for stimulus in self.stimuli:
             if type(stimulus) == SaccadicStimulus:
                 protocol['saccadic_stimuli'].append(stimulus.information)
-        else:
-            protocol['fixation_stimuli'].append(stimulus.information)
+            else:
+                protocol['pursuit_stimuli'].append(stimulus.information)
 
         return protocol
 
