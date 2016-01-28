@@ -1,0 +1,15 @@
+{
+    "notes": "Proasdad",
+    "name": "Prueba",
+    "pursuit_stimulus": [],
+    "saccadic_stimuli": [
+        {
+            "saccade_duration": 1,
+            "duration": 12,
+            "variation": 12,
+            "amplitude": 12,
+            "name": "Ejemplo 1",
+            "channel": 0
+        }
+    ]
+}
