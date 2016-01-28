@@ -1,8 +1,12 @@
+from os.path import dirname
+
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
-    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit
-from PyQt4.QtCore import QSize
+    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QDialogButtonBox, QVBoxLayout, QListWidget,\
+    QListWidgetItem, QFileDialog
+from PyQt4.QtCore import QSize, Qt
 import artwork.icons as fa
-from stimulation import Channel, SaccadicStimulus, Protocol
+from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
+from nsnyst.core import user_settings
 
 
 class GenericParametersWidget(QWidget):
@@ -190,6 +194,93 @@ class CreateProtocolWidget(QDialog):
         return self.protocol_notes.toPlainText()
 
 
+class WorkspaceSettingsWidget(QWidget):
+    def __init__(self, parent=None):
+        super(WorkspaceSettingsWidget, self).__init__(parent)
+        self.workspace_path = QLineEdit(user_settings.value('workspace_path', dirname(__file__)))
+        self.workspace_path.setReadOnly(True)
+
+        self.search_path_button = QPushButton("Seleccionar")
+        self.search_path_button.clicked.connect(self._search_path)
+
+        self.container_layout = QHBoxLayout()
+        self.container_layout.addWidget(self.workspace_path)
+        self.container_layout.addWidget(self.search_path_button)
+
+        self.main_layout = QFormLayout()
+        self.main_layout.addRow("Ruta de trabajo:", self.container_layout)
+        self.setLayout(self.main_layout)
+
+    def _search_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Workspace",
+                                                user_settings.value('workspace_path', dirname(__file__)))
+
+        if path:
+            self.workspace_path.setText(path)
+
+    def save(self):
+        user_settings.setValue('workspace_path', self.workspace_path.text())
+
+
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super(SettingsDialog, self).__init__(parent)
+        self.setWindowTitle('Configuración')
+        self.setMinimumSize(400, 300)
+        self.resize(600, 450)
+
+        self.contents_widget = QListWidget()
+        self.contents_widget.setViewMode(QListWidget.IconMode)
+        self.contents_widget.setIconSize(QSize(80, 80))
+        self.contents_widget.setMovement(QListWidget.Static)
+        self.contents_widget.setMaximumWidth(100)
+        self.contents_widget.setMinimumWidth(100)
+        self.contents_widget.setSpacing(5)
+        self.contents_widget.setCurrentRow(0)
+
+        self.pages_widget = QStackedWidget()
+
+        self._horizontal_layout = QHBoxLayout()
+        self._horizontal_layout.addWidget(self.contents_widget)
+        self._horizontal_layout.addSpacing(20)
+        self._horizontal_layout.addWidget(self.pages_widget)
+
+        self._button_box = QDialogButtonBox()
+        self._button_box.addButton('Aceptar', QDialogButtonBox.AcceptRole)
+        self._button_box.addButton('Cancelar', QDialogButtonBox.RejectRole)
+
+        self._button_box.accepted.connect(self.accepted)
+        self._button_box.rejected.connect(self.reject)
+
+        self._main_layout = QVBoxLayout()
+        self._main_layout.addLayout(self._horizontal_layout)
+        self._main_layout.addWidget(self._button_box)
+
+        self.setLayout(self._main_layout)
+
+        self.add_item("Workspace", fa.icon('fa.folder'), WorkspaceSettingsWidget())
+
+    def accepted(self):
+        for i in range(self.pages_widget.count()):
+            self.pages_widget.widget(i).save()
+
+        self.accept()
+
+    def _change_page(self, current):
+        index = self.contents_widget.row(current)
+        self.pages_widget.setCurrentIndex(index)
+
+    def add_item(self, text, icon, widget):
+        button = QListWidgetItem(self.contents_widget)
+        button.setText(text)
+        button.setIcon(icon)
+        button.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+        button.setTextAlignment(Qt.AlignHCenter)
+
+        self.contents_widget.currentItemChanged.connect(self._change_page)
+        self.pages_widget.addWidget(widget)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
@@ -197,15 +288,19 @@ class MainWindow(QMainWindow):
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
 
-        self.create_protocol = CreateProtocolWidget()
-
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
 
+        self.create_protocol = CreateProtocolWidget()
+
         fa_icon = fa.icon('fa.television')
         self.add_stimuli_action = QAction(fa_icon, 'Crear nuevo estímulo', self.tool_bar)
-        self.add_stimuli_action.triggered.connect(self.create_protocol.show)
-
+        self.add_stimuli_action.triggered.connect(self.create_protocol.exec)
         self.tool_bar.addAction(self.add_stimuli_action)
+
+        self.settings_dialog = SettingsDialog()
+        self.settings_action = QAction(fa.icon('fa.cog'), 'Configuración', self.tool_bar)
+        self.settings_action.triggered.connect(self.settings_dialog.exec)
+        self.tool_bar.addAction(self.settings_action)
 
         self.addToolBar(self.tool_bar)
