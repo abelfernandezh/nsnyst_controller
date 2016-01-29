@@ -1,1 +1,1 @@
-{"notes": "Proasdad", "fixation_stimuli": [], "saccadic_stimuli": [{"amplitude": 12, "duration": 12, "channel": 1, "velocity": 12, "name": "Ejemplo 1"}], "name": "Prueba"}
+{"saccadic_stimuli": [{"duration": 12, "name": "Ejemplo 1", "channel": 1, "velocity": 12, "amplitude": 12}], "name": "Prueba", "fixation_stimuli": [], "notes": "Proasdad"}

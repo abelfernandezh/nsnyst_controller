@@ -1,8 +1,15 @@
+from os.path import dirname
+from math import tan, atan, degrees, atan2, radians
+import random
+
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
-    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QDialogButtonBox, QVBoxLayout
+    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit
 from PyQt4.QtCore import QSize
 import artwork.icons as fa
-from nsnyst.stimulation import Channel, SaccadicStimulus, FixationStimulus, Protocol, StimulusType
+from stimulation import Channel, SaccadicStimulus, Protocol
+
+from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
+from nsnyst.core import user_settings
 
 
 class GenericParametersWidget(QWidget):
@@ -309,22 +316,187 @@ class CreateProtocolWidget(QDialog):
             print(create_stimulus.saccadic_features.saccadic_velocity.value())
 
 
+class RepaintThread(QThread):
+    paintStimulus = pyqtSignal()
+    stopStimulus = pyqtSignal()
+
+    def __init__(self, saccadic_stimulus):
+        QThread.__init__(self)
+        self.saccadic_stimulus = saccadic_stimulus
+        self.real_duration = 0
+
+    def run(self):
+        while True:
+            self.paintStimulus.emit()
+            self.real_duration = self.saccadic_stimulus.fixation_duration + (random.randrange(
+                    self.saccadic_stimulus.variation * 2)) - self.saccadic_stimulus.variation
+            self.msleep(self.real_duration)
+            self.saccadic_stimulus.duration -= self.real_duration
+
+        if self.saccadic_stimulus.duration <= 0:
+            self.stopStimulus.emit()
+
+
+class StimulatorWidget(QWidget):
+    def __init__(self, screen_2_height_mm, screen_2_width_mm, parent=None):
+        super(StimulatorWidget, self).__init__(parent)
+        self.screen = QDesktopWidget().screenGeometry(1)
+        self.move(self.screen.left(), self.screen.top())
+        self.height = self.screen.height()
+        self.width = self.screen.width()
+        self.resize(self.screen.width(), self.screen.height())
+        stimuli_test = SaccadicStimulus('Sacádica 30', 20000, 60, 20, 3000)
+        protocol = Protocol('Protocolo de Prueba', 'Este es un protocolo para probar el estímulo', 300)
+        protocol.add_stimulus(stimuli_test)
+        self.pixel_size = screen_2_width_mm / self.screen.width()
+        self.diff = (tan(radians(stimuli_test.amplitude)) * protocol.distance)
+        print(tan(radians(stimuli_test.amplitude)) * protocol.distance)
+
+        self.thread = RepaintThread(stimuli_test)
+        self.thread.start()
+        self.thread.paintStimulus.connect(self.show_paint)
+        self.thread.stopStimulus.connect(self.stop_paint)
+        self.should_paint = True
+
+    def paintEvent(self, event):
+        qp = QPainter(self)
+        qp.fillRect(0, 0, self.screen.width(), self.screen.height(), QColor(255, 255, 255))
+        qp.setPen(QColor(25, 25, 112))
+        qp.setBrush(QBrush(QColor(25, 25, 112)))
+        if self.should_paint:
+            qp.drawEllipse(self.screen.width() / 2 - 15 + self.diff, self.screen.height() / 2, 30, 30)
+
+    def show_paint(self):
+        self.diff *= -1
+        self.update()
+
+    def stop_paint(self):
+        self.should_paint = False
+        self.update()
+
+    def paint_stimuli(self, protocol):
+        pass
+
+    def show_stimulator(self):
+        if QDesktopWidget().numScreens() is 1:
+            QMessageBox.warning(self, "Múltiples pantallas requeridas",
+                                "Para ejecutar esta funcionalidad se necesita otro monitor. " +
+                                "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
+        else:
+            self.showFullScreen()
+
+
+class WorkspaceSettingsWidget(QWidget):
+    def __init__(self, parent=None):
+        super(WorkspaceSettingsWidget, self).__init__(parent)
+        self.workspace_path = QLineEdit(user_settings.value('workspace_path', dirname(__file__)))
+        self.workspace_path.setReadOnly(True)
+
+        self.search_path_button = QPushButton("Seleccionar")
+        self.search_path_button.clicked.connect(self._search_path)
+
+        self.container_layout = QHBoxLayout()
+        self.container_layout.addWidget(self.workspace_path)
+        self.container_layout.addWidget(self.search_path_button)
+
+        self.main_layout = QFormLayout()
+        self.main_layout.addRow("Ruta de trabajo:", self.container_layout)
+        self.setLayout(self.main_layout)
+
+    def _search_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Workspace",
+                                                user_settings.value('workspace_path', dirname(__file__)))
+
+        if path:
+            self.workspace_path.setText(path)
+
+    def save(self):
+        user_settings.setValue('workspace_path', self.workspace_path.text())
+
+
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super(SettingsDialog, self).__init__(parent)
+        self.setWindowTitle('Configuración')
+        self.setMinimumSize(400, 300)
+        self.resize(600, 450)
+
+        self.contents_widget = QListWidget()
+        self.contents_widget.setViewMode(QListWidget.IconMode)
+        self.contents_widget.setIconSize(QSize(80, 80))
+        self.contents_widget.setMovement(QListWidget.Static)
+        self.contents_widget.setMaximumWidth(100)
+        self.contents_widget.setMinimumWidth(100)
+        self.contents_widget.setSpacing(5)
+        self.contents_widget.setCurrentRow(0)
+
+        self.pages_widget = QStackedWidget()
+
+        self._horizontal_layout = QHBoxLayout()
+        self._horizontal_layout.addWidget(self.contents_widget)
+        self._horizontal_layout.addSpacing(20)
+        self._horizontal_layout.addWidget(self.pages_widget)
+
+        self._button_box = QDialogButtonBox()
+        self._button_box.addButton('Aceptar', QDialogButtonBox.AcceptRole)
+        self._button_box.addButton('Cancelar', QDialogButtonBox.RejectRole)
+
+        self._button_box.accepted.connect(self.accepted)
+        self._button_box.rejected.connect(self.reject)
+
+        self._main_layout = QVBoxLayout()
+        self._main_layout.addLayout(self._horizontal_layout)
+        self._main_layout.addWidget(self._button_box)
+
+        self.setLayout(self._main_layout)
+
+        self.add_item("Workspace", fa.icon('fa.folder'), WorkspaceSettingsWidget())
+
+    def accepted(self):
+        for i in range(self.pages_widget.count()):
+            self.pages_widget.widget(i).save()
+
+        self.accept()
+
+    def _change_page(self, current):
+        index = self.contents_widget.row(current)
+        self.pages_widget.setCurrentIndex(index)
+
+    def add_item(self, text, icon, widget):
+        button = QListWidgetItem(self.contents_widget)
+        button.setText(text)
+        button.setIcon(icon)
+        button.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+        button.setTextAlignment(Qt.AlignHCenter)
+
+        self.contents_widget.currentItemChanged.connect(self._change_page)
+        self.pages_widget.addWidget(widget)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
-
         self.create_protocol = CreateProtocolWidget()
-
+        self.stimulator = StimulatorWidget(268, 476)
+        self.stimulator.show_stimulator()
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
 
+        self.create_protocol = CreateProtocolWidget()
+
         fa_icon = fa.icon('fa.television')
         self.add_stimuli_action = QAction(fa_icon, 'Crear nuevo estímulo', self.tool_bar)
-        self.add_stimuli_action.triggered.connect(self.create_protocol.show)
-
+        self.add_stimuli_action.triggered.connect(self.create_protocol.exec)
         self.tool_bar.addAction(self.add_stimuli_action)
 
+        self.settings_dialog = SettingsDialog()
+        self.settings_action = QAction(fa.icon('fa.cog'), 'Configuración', self.tool_bar)
+        self.settings_action.triggered.connect(self.settings_dialog.exec)
+        self.tool_bar.addAction(self.settings_action)
+
         self.addToolBar(self.tool_bar)
+
+    def closeEvent(self, *args, **kwargs):
+        self.stimulator.close()
