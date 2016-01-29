@@ -1,16 +1,14 @@
 from os.path import dirname
+from math import tan, atan, degrees, atan2, radians
+import random
 
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QBrush
+    QBrush, QFileDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal
-    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QDialogButtonBox, QVBoxLayout, QListWidget,\
-    QListWidgetItem, QFileDialog
-from PyQt4.QtCore import QSize, Qt
+
 import artwork.icons as fa
-from stimulation import Channel, SaccadicStimulus, Protocol
-from math import tan, atan, degrees, atan2, radians
-import random
+
 from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
 from nsnyst.core import user_settings
 
