@@ -7,6 +7,11 @@ class Channel(Enum):
     Vertical_Channel = 2
 
 
+class StimulusType(Enum):
+    Saccadic = 0
+    Fixation = 1
+
+
 class Stimulus:
     def __init__(self, name, duration, channel=0):
         self.name = name
