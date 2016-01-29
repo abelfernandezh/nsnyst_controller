@@ -221,7 +221,7 @@ class StimulatorWidget(QWidget):
         self.height = self.screen.height()
         self.width = self.screen.width()
         self.resize(self.screen.width(), self.screen.height())
-        stimuli_test = SaccadicStimulus('Sacádica 30', 10000, 60, 20, 2000)
+        stimuli_test = SaccadicStimulus('Sacádica 30', 20000, 60, 20, 3000)
         protocol = Protocol('Protocolo de Prueba', 'Este es un protocolo para probar el estímulo', 300)
         protocol.add_stimulus(stimuli_test)
         self.pixel_size = screen_2_width_mm / self.screen.width()
