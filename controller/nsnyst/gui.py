@@ -3,12 +3,14 @@ from math import tan, atan, degrees, atan2, radians
 import random
 
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
-    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit
+    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget , QMessageBox, \
+    QListWidget, QDialogButtonBox, QListWidgetItem
+from PyQt4.QtCore import QSize, QThread, pyqtSignal, Qt
 from PyQt4.QtCore import QSize
 import artwork.icons as fa
 from stimulation import Channel, SaccadicStimulus, Protocol
 
-from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
+from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
 from nsnyst.core import user_settings
 
 
@@ -35,7 +37,7 @@ class GenericParametersWidget(QWidget):
 
     @property
     def name(self):
-        return self.stimulus_name.value()
+        return self.stimulus_name.text()
 
     @property
     def duration(self):
@@ -51,31 +53,31 @@ class GenericParametersWidget(QWidget):
             return Channel.Horizontal_Channel
 
 
-class SaccadicStimuliParametersWidget(QWidget):
+class PursuitStimuliParametersWidget(QWidget):
     def __init__(self, parent=None):
-        super(SaccadicStimuliParametersWidget, self).__init__(parent)
-        self.saccadic_amplitude = QLineEdit()
-        self.saccadic_amplitude.setMaximumWidth(100)
-        self.saccadic_velocity = QSpinBox()
-        self.saccadic_velocity.setMaximumWidth(100)
+        super(PursuitStimuliParametersWidget, self).__init__(parent)
+        self.pursuit_amplitude = QSpinBox()
+        self.pursuit_amplitude.setMaximumWidth(100)
+        self.pursuit_velocity = QSpinBox()
+        self.pursuit_velocity.setMaximumWidth(100)
 
         self.f_layout = QFormLayout()
-        self.f_layout.addRow('Amplitud', self.saccadic_amplitude)
-        self.f_layout.addRow('Velocidad', self.saccadic_velocity)
+        self.f_layout.addRow('Amplitud', self.pursuit_amplitude)
+        self.f_layout.addRow('Velocidad', self.pursuit_velocity)
         self.setLayout(self.f_layout)
 
     @property
     def velocity(self):
-        return self.saccadic_velocity.value()
+        return self.pursuit_velocity.value()
 
     @property
     def amplitude(self):
-        self.saccadic_amplitude.value()
+        return self.pursuit_amplitude.value()
 
 
-class FixationStimuliParametersWidget(QWidget):
+class SaccadicStimuliParametersWidget(QWidget):
     def __init__(self, parent=None):
-        super(FixationStimuliParametersWidget, self).__init__(parent)
+        super(SaccadicStimuliParametersWidget, self).__init__(parent)
         self.fixation_duration = QSpinBox()
         self.fixation_duration.setMaximumWidth(100)
         self.fixation_amplitude = QSpinBox()
@@ -108,8 +110,8 @@ class CreateStimuliWidget(QDialog):
         self.setWindowTitle('Crear nuevo estímulo')
         self.stimulus = None
         self.generic = GenericParametersWidget()
-        self.fixation_features = FixationStimuliParametersWidget()
         self.saccadic_features = SaccadicStimuliParametersWidget()
+        self.pursuit_features = PursuitStimuliParametersWidget()
         self.stimulus_type = StimulusType.Saccadic
 
         self.setMinimumWidth(400)
@@ -119,7 +121,7 @@ class CreateStimuliWidget(QDialog):
 
         self.advanced_properties_stack = QStackedWidget()
         self.advanced_properties_stack.addWidget(self.saccadic_features)
-        self.advanced_properties_stack.addWidget(self.fixation_features)
+        self.advanced_properties_stack.addWidget(self.pursuit_features)
 
         self.h_layout.addWidget(self.generic)
         self.h_layout.addWidget(self.advanced_properties_stack)
@@ -142,32 +144,21 @@ class CreateStimuliWidget(QDialog):
     def accept(self):
         super(CreateStimuliWidget, self).accept()
 
-        name = self.generic.stimulus_name.text()
-        print('duration' + str(self.generic.stimulus_duration))
-        duration = self.generic.stimulus_duration.value()
-        channel = 0
-        h = self.generic.horizontal_channel.isChecked()
-        v = self.generic.vertical_channel.isChecked()
-        if not h and v:
-            channel = Channel.Vertical_Channel
-        if not v and h:
-            channel = Channel.Horizontal_Channel
+        name = self.generic.name
+        duration = self.generic.duration
+        channel = self.generic.channels
 
-        if self.stimulus_type == StimulusType.Fixation:
-            f_amplitude = self.fixation_features.fixation_amplitude.value()
-            f_duration = self.fixation_features.fixation_duration.value()
-            f_variation = self.fixation_features.fixation_variation.value()
-            stimulus_data = FixationStimulus(name, duration, f_amplitude, f_duration, f_variation, channel)
+        if self.stimulus_type == StimulusType.Saccadic:
+            f_amplitude = self.saccadic_features.amplitude
+            f_duration = self.saccadic_features.duration
+            f_variation = self.saccadic_features.variation
+            stimulus_data = SaccadicStimulus(name, duration, f_amplitude, f_variation, f_duration, channel)
         else:
-            s_amplitude = self.saccadic_features.saccadic_amplitude.text()
-            velocity = self.saccadic_features.saccadic_velocity.value()
-            stimulus_data = SaccadicStimulus(name, duration, s_amplitude, velocity, channel)
+            p_amplitude = self.pursuit_features.amplitude
+            velocity = self.pursuit_features.velocity
+            stimulus_data = PursuitStimulus(name, duration, p_amplitude, velocity, channel)
 
         self.stimulus = stimulus_data
-        if type(self.stimulus) is SaccadicStimulus:
-            print(self.stimulus.name, self.stimulus.duration, self.stimulus.amplitude, self.stimulus.velocity, self.stimulus.channel)
-        else:
-            print(self.stimulus.name, self.stimulus.duration, self.stimulus.amplitude, self.stimulus.fixation_duration, self.stimulus.variation, self.stimulus.channel)
 
     def on_index_change(self):
         self.advanced_properties_stack.setCurrentIndex(self.generic.type.currentIndex())
@@ -187,7 +178,7 @@ class StimulusWidget(QWidget):
         if type(stimulus) == SaccadicStimulus:
             self.stimulus_type.setText('Estímulo Sacádico')
         else:
-            self.stimulus_type.setText('Estímulo de Fijación')
+            self.stimulus_type.setText('Estímulo de Persecución')
         fa_delete = fa.icon('fa.trash')
         fa_edit = fa.icon('fa.pencil')
         self.edit_stimulus = QPushButton(fa_edit, '')
@@ -224,6 +215,7 @@ class CreateProtocolWidget(QDialog):
         self.f_layout = QFormLayout()
         self.main_layout = QVBoxLayout()
         self.v_stimuli_layout = QVBoxLayout()
+        self.buttons_layout = QHBoxLayout()
 
         self.protocol_name = QLineEdit()
         self.protocol_notes = QTextEdit()
@@ -234,10 +226,15 @@ class CreateProtocolWidget(QDialog):
 
         self.add_stimulus_button = QPushButton(fa.icon('fa.plus'), '')
         self.add_stimulus_button.clicked.connect(self.add_stimulus)
+        self.save_button = QPushButton(fa.icon('fa.save'), '')
+        self.save_button.clicked.connect(self.accepted)
+
+        self.buttons_layout.addWidget(self.save_button)
+        self.buttons_layout.addWidget(self.add_stimulus_button)
 
         self.main_layout.addLayout(self.f_layout)
         self.main_layout.addLayout(self.v_stimuli_layout)
-        self.main_layout.addWidget(self.add_stimulus_button)
+        self.main_layout.addLayout(self.buttons_layout)
 
         self.setLayout(self.main_layout)
 
@@ -249,8 +246,12 @@ class CreateProtocolWidget(QDialog):
     def notes(self):
         return self.protocol_notes.toPlainText()
 
-    def save(self):
-        pass
+    def accepted(self):
+        protocol = Protocol(self.name, self.notes, 50)
+        protocol.stimuli = self.stimuli_list
+        protocol.save()
+
+        self.accept()
 
     def delete_stimulus(self):
         for i in range(self.v_stimuli_layout.count()):
@@ -262,21 +263,19 @@ class CreateProtocolWidget(QDialog):
                 break
 
     def edit_stimulus(self):
-        self.index = -1
+        index = -1
         for i in range(self.v_stimuli_layout.count()):
             widget = self.v_stimuli_layout.itemAt(i).widget()
             if widget.marked_for_edition:
-                self.index = self.v_stimuli_layout.indexOf(widget)
+                index = self.v_stimuli_layout.indexOf(widget)
                 widget.marked_for_edition = False
                 break
 
         edit_stimulus = CreateStimuliWidget()
         edit_stimulus.setWindowTitle('Editar estímulo')
-        edit_stimulus
-
-        stimulus = self.stimuli_list[self.index]
+        stimulus = self.stimuli_list[index]
         stimulus_type = 0
-        if type(stimulus) is FixationStimulus:
+        if type(stimulus) is PursuitStimulus:
             stimulus_type = 1
 
         edit_stimulus.generic.type.setCurrentIndex(stimulus_type)
@@ -287,22 +286,23 @@ class CreateProtocolWidget(QDialog):
             edit_stimulus.generic.vertical_channel.setChecked(False)
         elif stimulus.channel == Channel.Vertical_Channel:
             edit_stimulus.generic.horizontal_channel.setChecked(False)
-        edit_stimulus.generic.stimulus_duration = stimulus.duration
+        edit_stimulus.generic.stimulus_duration.setValue(stimulus.duration)
 
-        if type(stimulus) is FixationStimulus:
-            arg = stimulus.fixation_duration
-            print('arg = ', str(arg))
-            edit_stimulus.fixation_features.fixation_duration.setValue(arg)
-            edit_stimulus.fixation_features.fixation_variation.setValue(stimulus.amplitude)
-            edit_stimulus.fixation_features.fixation_variation.setValue(stimulus.variation)
+        if type(stimulus) is SaccadicStimulus:
+            edit_stimulus.saccadic_features.fixation_duration.setValue(stimulus.fixation_duration)
+            edit_stimulus.saccadic_features.fixation_amplitude.setValue(stimulus.amplitude)
+            edit_stimulus.saccadic_features.fixation_variation.setValue(stimulus.variation)
         else:
-            edit_stimulus.saccadic_features.saccadic_amplitude.setText(stimulus.amplitude)
-            edit_stimulus.saccadic_features.saccadic_velocity.setValue(stimulus.velocity)
+            edit_stimulus.pursuit_features.pursuit_amplitude.setValue(stimulus.amplitude)
+            edit_stimulus.pursuit_features.pursuit_velocity.setValue(stimulus.velocity)
 
         if edit_stimulus.exec() == QDialog.Accepted:
-            self.stimuli_list[self.index] = edit_stimulus.stimulus
-            widget.separator = 'xcv'
-
+            self.stimuli_list[index] = edit_stimulus.stimulus
+            widget.stimulus_name.setText(edit_stimulus.stimulus.name)
+            if type(edit_stimulus.stimulus) == SaccadicStimulus:
+                widget.stimulus_type.setText('Estímulo Sacádico')
+            else:
+                widget.stimulus_type.setText('Estímulo de Persecución')
 
     def add_stimulus(self):
         create_stimulus = CreateStimuliWidget()
@@ -313,7 +313,6 @@ class CreateProtocolWidget(QDialog):
             self.v_stimuli_layout.addWidget(stimulus_widget)
             stimulus_widget.delete_stimulus.clicked.connect(self.delete_stimulus)
             stimulus_widget.edit_stimulus.clicked.connect(self.edit_stimulus)
-            print(create_stimulus.saccadic_features.saccadic_velocity.value())
 
 
 class RepaintThread(QThread):

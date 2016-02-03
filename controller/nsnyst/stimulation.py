@@ -1,6 +1,9 @@
 from enum import Enum
+from os.path import dirname
 from math import radians
 import json
+
+from core import user_settings
 
 
 class Channel(Enum):
@@ -10,7 +13,7 @@ class Channel(Enum):
 
 class StimulusType(Enum):
     Saccadic = 0
-    Fixation = 1
+    Pursuit = 1
 
 
 class Stimulus:
@@ -31,6 +34,8 @@ class SaccadicStimulus(Stimulus):
     def information(self):
         information = {'name': self.name, 'duration': self.duration, 'fixation_duration': self.fixation_duration,
                        'amplitude': self.amplitude, 'variation': self.variation, 'channel': self.channel}
+        if self.channel != 0:
+            information['channel'] = self.channel.value
         return information
 
 
@@ -43,7 +48,9 @@ class PursuitStimulus(Stimulus):
     @property
     def information(self):
         stimulus = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
-                    'velocity': self.velocity}
+                    'velocity': self.velocity, 'channel': self.channel}
+        if self.channel != 0:
+            stimulus['channel'] = self.channel.value
         return stimulus
 
 
@@ -68,7 +75,7 @@ class Protocol:
 
     @property
     def information(self):
-        protocol = {'name': self.name, 'notes': self.notes, 'saccadic_stimuli': [], 'pursuit_stimulus': []}
+        protocol = {'name': self.name, 'notes': self.notes, 'saccadic_stimuli': [], 'pursuit_stimuli': []}
 
         for stimulus in self.stimuli:
             if type(stimulus) == SaccadicStimulus:
@@ -82,4 +89,5 @@ class Protocol:
         self.stimuli.append(stimulus)
 
     def save(self):
-        json.dump(self.information, open(self.name + '.', 'w'), sort_keys=False, indent=4)
+        path = user_settings.value('workspace_path', dirname(__file__))
+        json.dump(self.information, open(path + '/' + self.name + '.json', 'w'), sort_keys=False, indent=4)
