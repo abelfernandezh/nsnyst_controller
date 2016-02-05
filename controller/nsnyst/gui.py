@@ -398,12 +398,24 @@ class WorkspaceSettingsWidget(QWidget):
         self.container_layout.addWidget(self.workspace_path)
         self.container_layout.addWidget(self.search_path_button)
 
+        self.screen_height = QSpinBox()
+        self.screen_height.setSuffix(" mm")
+        self.screen_height.setMaximum(10000)
+        self.screen_height.setValue(user_settings.value('screen_height', 0))
+
+        self.screen_width = QSpinBox()
+        self.screen_width.setSuffix(" mm")
+        self.screen_width.setMaximum(10000)
+        self.screen_width.setValue(user_settings.value('screen_width', 0))
+
         self.main_layout = QFormLayout()
+        self.main_layout.addRow("Largo del monitor:", self.screen_width)
+        self.main_layout.addRow("Alto del monitor:", self.screen_height)
         self.main_layout.addRow("Ruta de trabajo:", self.container_layout)
         self.setLayout(self.main_layout)
 
     def _search_path(self):
-        path = QFileDialog.getExistingDirectory(self, "Workspace",
+        path = QFileDialog.getExistingDirectory(self, "Ruta de trabajo",
                                                 user_settings.value('workspace_path', dirname(__file__)))
 
         if path:
@@ -411,6 +423,8 @@ class WorkspaceSettingsWidget(QWidget):
 
     def save(self):
         user_settings.setValue('workspace_path', self.workspace_path.text())
+        user_settings.setValue('screen_height', self.screen_height.value())
+        user_settings.setValue('screen_width', self.screen_width.value())
 
 
 class SettingsDialog(QDialog):
@@ -424,8 +438,8 @@ class SettingsDialog(QDialog):
         self.contents_widget.setViewMode(QListWidget.IconMode)
         self.contents_widget.setIconSize(QSize(80, 80))
         self.contents_widget.setMovement(QListWidget.Static)
-        self.contents_widget.setMaximumWidth(100)
-        self.contents_widget.setMinimumWidth(100)
+        self.contents_widget.setMaximumWidth(120)
+        self.contents_widget.setMinimumWidth(120)
         self.contents_widget.setSpacing(5)
         self.contents_widget.setCurrentRow(0)
 
@@ -449,7 +463,7 @@ class SettingsDialog(QDialog):
 
         self.setLayout(self._main_layout)
 
-        self.add_item("Workspace", fa.icon('fa.folder'), WorkspaceSettingsWidget())
+        self.add_item("Entorno de trabajo", fa.icon('fa.folder'), WorkspaceSettingsWidget())
 
     def accepted(self):
         for i in range(self.pages_widget.count()):
