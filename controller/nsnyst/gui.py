@@ -3,16 +3,16 @@ from math import tan, atan, degrees, atan2, radians
 import random
 
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
-    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget , QMessageBox, \
-    QListWidget, QDialogButtonBox, QListWidgetItem
-from PyQt4.QtCore import QSize, QThread, pyqtSignal, Qt
-from PyQt4.QtCore import QSize
+    QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
+    QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
+    QBrush
+from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal
 import artwork.icons as fa
 from stimulation import Channel, SaccadicStimulus, Protocol
 
 from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
 from nsnyst.core import user_settings
-
+from PyQt4.QtCore import QTime
 
 class GenericParametersWidget(QWidget):
     def __init__(self, parent=None):
@@ -319,21 +319,29 @@ class RepaintThread(QThread):
     paintStimulus = pyqtSignal()
     stopStimulus = pyqtSignal()
 
-    def __init__(self, saccadic_stimulus):
+    def __init__(self, stimulus):
         QThread.__init__(self)
-        self.saccadic_stimulus = saccadic_stimulus
-        self.real_duration = 0
+        self.stimulus = stimulus
 
     def run(self):
-        while True:
+        time = QTime()
+        time.start()
+        while self.stimulus.duration > 0:
             self.paintStimulus.emit()
-            self.real_duration = self.saccadic_stimulus.fixation_duration + (random.randrange(
-                    self.saccadic_stimulus.variation * 2)) - self.saccadic_stimulus.variation
-            self.msleep(self.real_duration)
-            self.saccadic_stimulus.duration -= self.real_duration
+            delay = self.get_delay()
+            print("Time elapsed: %d ms" % time.elapsed())
+            self.msleep(delay)
+            time.restart()
+            self.stimulus.duration -= delay
+        self.stopStimulus.emit()
 
-        if self.saccadic_stimulus.duration <= 0:
-            self.stopStimulus.emit()
+    def get_delay(self):
+        if type(self.stimulus) == SaccadicStimulus:
+            real_duration = self.stimulus.fixation_duration + (random.randrange(
+                self.stimulus.variation * 2)) - self.stimulus.variation
+            return real_duration
+        else:
+            return 8
 
 
 class StimulatorWidget(QWidget):
@@ -344,18 +352,42 @@ class StimulatorWidget(QWidget):
         self.height = self.screen.height()
         self.width = self.screen.width()
         self.resize(self.screen.width(), self.screen.height())
-        stimuli_test = SaccadicStimulus('Sacádica 30', 20000, 60, 20, 3000)
-        protocol = Protocol('Protocolo de Prueba', 'Este es un protocolo para probar el estímulo', 300)
-        protocol.add_stimulus(stimuli_test)
+        stimuli_test = SaccadicStimulus('Sacádica 30', 20000, 60, 20, 1000)
+        stimuli_test2 = PursuitStimulus('Persecución 60', 60000, 90, 50)
+        self.current_stimulus = stimuli_test2
+        self.protocol = Protocol('Protocolo de Prueba', 'Este es un protocolo para probar el estímulo', 300)
+        self.protocol.add_stimulus(self.current_stimulus)
         self.pixel_size = screen_2_width_mm / self.screen.width()
-        self.diff = (tan(radians(stimuli_test.amplitude)) * protocol.distance)
-        print(tan(radians(stimuli_test.amplitude)) * protocol.distance)
+        self.sac_shift_factor = 1
+        # print(tan(radians(stimuli_test.amplitude/2)) * self.protocol.distance)
 
-        self.thread = RepaintThread(stimuli_test)
+        self.time_since_start = 0
+        self.semi_length = tan(radians(self.current_stimulus.amplitude / 2)) * self.protocol.distance
+        self.distance = self.protocol.distance
+
+        self.thread = RepaintThread(self.current_stimulus)
         self.thread.start()
         self.thread.paintStimulus.connect(self.show_paint)
         self.thread.stopStimulus.connect(self.stop_paint)
         self.should_paint = True
+
+        self.previous_point = [0, 0]
+        self.current_point = [self.screen.width() / 2 - 15 + self.get_shift(), self.screen.height() / 2]
+
+    def get_shift(self):
+        if type(self.current_stimulus) == SaccadicStimulus:
+            self.sac_shift_factor *= -1
+            diff_sac = tan(radians(self.current_stimulus.amplitude)) * self.protocol.distance
+            return diff_sac * self.sac_shift_factor
+        else:
+            time_for_round = self.current_stimulus.amplitude / (self.current_stimulus.velocity / 1000)
+            alpha = (self.current_stimulus.velocity / 1000) * (self.time_since_start % time_for_round)
+            if int(self.time_since_start / time_for_round) % 2 == 1:
+                alpha = self.current_stimulus.amplitude - alpha
+            print(alpha)
+            diff = -self.distance * tan(radians(self.current_stimulus.amplitude / 2 - alpha))
+            self.time_since_start += 8
+            return diff
 
     def paintEvent(self, event):
         qp = QPainter(self)
@@ -363,11 +395,17 @@ class StimulatorWidget(QWidget):
         qp.setPen(QColor(25, 25, 112))
         qp.setBrush(QBrush(QColor(25, 25, 112)))
         if self.should_paint:
-            qp.drawEllipse(self.screen.width() / 2 - 15 + self.diff, self.screen.height() / 2, 30, 30)
+            shift = self.get_shift()
+            x = self.screen.width() / 2 - 15 + shift
+            y = self.screen.height() / 2
+            qp.drawEllipse(x, y, 30, 30)
+
+            self.previous_point = self.current_point
+            self.current_point = [x, y]
 
     def show_paint(self):
-        self.diff *= -1
-        self.update()
+        self.update(self.previous_point[0] - 10, self.previous_point[1], 50, 32)
+        self.update(self.current_point[0] - 10, self.current_point[1], 50, 32)
 
     def stop_paint(self):
         self.should_paint = False
@@ -377,11 +415,11 @@ class StimulatorWidget(QWidget):
         pass
 
     def show_stimulator(self):
-        if QDesktopWidget().numScreens() is 1:
-            QMessageBox.warning(self, "Múltiples pantallas requeridas",
-                                "Para ejecutar esta funcionalidad se necesita otro monitor. " +
-                                "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
-        else:
+        # if QDesktopWidget().numScreens() is 1:
+        #     QMessageBox.warning(self, "Múltiples pantallas requeridas",
+        #                         "Para ejecutar esta funcionalidad se necesita otro monitor. " +
+        #                         "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
+        # else:
             self.showFullScreen()
 
 
