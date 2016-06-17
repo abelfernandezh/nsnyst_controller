@@ -15,8 +15,8 @@ class Adquirer(Process):
     """ Signal acquisition from the amplifier
     """
 
-    ADC_START_COMMAND = 'S'
-    ADC_STOP_COMMAND = 'F'
+    ADC_START_COMMAND = b'S'
+    ADC_STOP_COMMAND = b'F'
     ADC_TIMEOUT = 0.02
 
     SERIAL_BAUDRATE = 115200
@@ -43,78 +43,78 @@ class Adquirer(Process):
         self.q = Queue()
         self.port = port
         self.handler = handler
-        self.data = zeros([blockcount * Recorder.RECORDER_BLOCKSIZE, 2], dtype=int16)
+        self.data = zeros([blockcount * Adquirer.RECORDER_BLOCKSIZE, 2], dtype=int16)
         self.blockcount = blockcount
-        self.countlimit = timelimit / Recorder.ADC_TIMEOUT
+        self.countlimit = timelimit / Adquirer.ADC_TIMEOUT
         self.total = 0
         self.num = 50
-        self.exit_code = Recorder.OK_EXIT_CODE
+        self.exit_code = Adquirer.OK_EXIT_CODE
 
         Process.__init__(self)
 
     def stop(self):
         """ Stop adquisition
         """
-        self.q.put(Recorder.RECORDER_STOP_COMMAND)
+        self.q.put(Adquirer.RECORDER_STOP_COMMAND)
 
     def run(self):
         """ Start adquisition
         """
-        self.exit_code = Recorder.OK_EXIT_CODE
+        self.exit_code = Adquirer.OK_EXIT_CODE
         serial = Serial(self.port,
-                        baudrate=Recorder.SERIAL_BAUDRATE,
-                        timeout=Recorder.SERIAL_TIMEOUT)
+                        baudrate=Adquirer.SERIAL_BAUDRATE,
+                        timeout=Adquirer.SERIAL_TIMEOUT)
 
         if serial.isOpen():
             sleep(1)
             serial.flush()
-            serial.write(Recorder.ADC_START_COMMAND)
+            serial.write(Adquirer.ADC_START_COMMAND)
 
             current = 0
 
             while True:
                 dat = serial.read(60)
                 if not len(dat) == 60:
-                    self.exit_code = Recorder.READ_ERROR_EXIT_CODE
+                    self.exit_code = Adquirer.READ_ERROR_EXIT_CODE
                     break
 
                 if not self.q.empty():
-                    if self.q.get() == Recorder.RECORDER_STOP_COMMAND:
-                        self.exit_code = Recorder.STOPPED_EXIT_CODE
+                    if self.q.get() == Adquirer.RECORDER_STOP_COMMAND:
+                        self.exit_code = Adquirer.STOPPED_EXIT_CODE
                         break
 
                 self.total += 1
 
                 for i in range(0, len(dat), 3):
-                    c1 = (ord(dat[i]) << 4) | ((ord(dat[i+1]) & 0xF0) >> 4)
-                    c0 = (((ord(dat[i + 1])) & 0xF) << 8) | (ord(dat[i + 2]))
+                    c1 = (dat[i] << 4) | ((dat[i+1] & 0xF0) >> 4)
+                    c0 = (((dat[i + 1]) & 0xF) << 8) | (dat[i + 2])
                     self.data[current][0] = c0
                     self.data[current][1] = c1
                     current += 1
 
-                if current == self.blockcount * Recorder.RECORDER_BLOCKSIZE:
+                if current == self.blockcount * Adquirer.RECORDER_BLOCKSIZE:
                     self.handler(self.data)
                     current = 0
 
                 if self.total == self.countlimit:
                     break
 
-            serial.write(Recorder.ADC_STOP_COMMAND)
+            serial.write(Adquirer.ADC_STOP_COMMAND)
             serial.close()
 
         else:
-            self.exit_code = Recorder.PORT_NOT_OPENED_EXIT_CODE
+            self.exit_code = Adquirer.PORT_NOT_OPENED_EXIT_CODE
 
-        if self.exit_code == Recorder.READ_ERROR_EXIT_CODE:
-            raise Exception('Recorder read error')
+        if self.exit_code == Adquirer.READ_ERROR_EXIT_CODE:
+            raise Exception('Adquirer read error')
 
-        if self.exit_code == Recorder.PORT_NOT_OPENED_EXIT_CODE:
+        if self.exit_code == Adquirer.PORT_NOT_OPENED_EXIT_CODE:
             raise Exception('Port not opened error')
 
     def was_recording_ok(self):
         """ Returns if the recording was successfull or not
         """
-        return (self.exit_code == Recorder.OK_EXIT_CODE) or (self.exit_code == Recorder.STOPPED_EXIT_CODE)
+        return (self.exit_code == Adquirer.OK_EXIT_CODE) or (self.exit_code == Recorder.STOPPED_EXIT_CODE)
 
 
 # Example block
@@ -128,7 +128,7 @@ def sample_handler(data):
 
 
 if __name__ == "__main__":
-    p = Recorder(port='COM9', handler=sample_handler, timelimit=120)
+    p = Adquirer(port='/dev/cu.usbmodem1421', handler=sample_handler, timelimit=10)
     p.start()
     p.join()
     f.close()
