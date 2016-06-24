@@ -13,7 +13,8 @@ from stimulation import Channel, SaccadicStimulus, Protocol
 from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
 from nsnyst.core import user_settings
 from PyQt4.QtCore import QTime
-
+from storage import Record, Test, RecordsDBIndex
+from PyQt4.QtGui import QFileDialog
 class GenericParametersWidget(QWidget):
     def __init__(self, parent=None):
         super(GenericParametersWidget, self).__init__(parent)
@@ -530,8 +531,32 @@ class MainWindow(QMainWindow):
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
         self.create_protocol = CreateProtocolWidget()
-        self.stimulator = StimulatorWidget(268, 476)
-        self.stimulator.show_stimulator()
+        # self.stimulator = StimulatorWidget(268, 476)
+        # self.stimulator.show_stimulator()
+        r = Record('Rec_name', 'protocol')
+        s = Record('another rec', 'prot name')
+        t = Test()
+        u = Test()
+        t[Test.HORIZONTAL_CHANNEL] = [1, 2, 3, 4]
+        u[Test.VERTICAL_CHANNEL] = [4.0, 2, 3, 4]
+        r.add_test(t)
+        s.add_test(u)
+        # print(t)
+        t = None
+        # print('getted test', r.get_test(0))
+        # print('getted test', r.get_test(0)[Test.HORIZONTAL_CHANNEL])
+        db = RecordsDBIndex()
+        # db.add_record(r)
+        # db.add_record(s)
+        # db.write_to_json()
+        db.load_from_json()
+        for r in db.records:
+            for t in range(len(r.tests_names)):
+                te = r.get_test(t)
+                print(te.channels, te.test_type.name)
+        # print(db.get_record(0).get_test(0).channels)
+
+
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
 
