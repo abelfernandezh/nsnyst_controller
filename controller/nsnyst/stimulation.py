@@ -3,7 +3,7 @@ from os.path import dirname
 from math import radians
 import json
 
-from core import user_settings
+from nsnyst.core import user_settings
 
 
 class Channel(Enum):

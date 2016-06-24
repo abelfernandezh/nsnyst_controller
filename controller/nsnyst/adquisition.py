@@ -5,15 +5,17 @@ This module is in charge of the communications with the amplifier device.
 
 __author__ = 'Carlos Cano Domingo <carcandom@uma.es>'
 
-from numpy import zeros, int16
-from multiprocessing import Queue, Process
+from numpy import zeros, int16, ndarray
+from multiprocessing import Queue
 from serial import Serial
 from time import sleep
+from PyQt4.QtCore import QThread, pyqtSignal
 
 
-class Adquirer(Process):
+class Adquirer(QThread):
     """ Signal acquisition from the amplifier
     """
+    read_data = pyqtSignal(ndarray)
 
     ADC_START_COMMAND = b'S'
     ADC_STOP_COMMAND = b'F'
@@ -30,27 +32,24 @@ class Adquirer(Process):
     PORT_NOT_OPENED_EXIT_CODE = 2
     READ_ERROR_EXIT_CODE = 3
 
-    def __init__(self, port: str, handler: callable, blockcount:int=1, timelimit:int=5):
+    def __init__(self, port: str, blockcount: int = 1, timelimit: int = 5):
         """ Constructor
 
         :port: Input device port
-        :handler: Data handler function
         :blockcount: Number of blocks in the buffer
         :timelimit: Acquisition length in seconds
 
         Buffer length is defined by the value of blockcount * RECORDER_BLOCKSIZE.
         """
+        super(Adquirer, self).__init__()
         self.q = Queue()
         self.port = port
-        self.handler = handler
         self.data = zeros([blockcount * Adquirer.RECORDER_BLOCKSIZE, 2], dtype=int16)
         self.blockcount = blockcount
         self.countlimit = timelimit / Adquirer.ADC_TIMEOUT
         self.total = 0
         self.num = 50
         self.exit_code = Adquirer.OK_EXIT_CODE
-
-        Process.__init__(self)
 
     def stop(self):
         """ Stop adquisition
@@ -86,14 +85,14 @@ class Adquirer(Process):
                 self.total += 1
 
                 for i in range(0, len(dat), 3):
-                    c1 = (dat[i] << 4) | ((dat[i+1] & 0xF0) >> 4)
+                    c1 = (dat[i] << 4) | ((dat[i + 1] & 0xF0) >> 4)
                     c0 = (((dat[i + 1]) & 0xF) << 8) | (dat[i + 2])
                     self.data[current][0] = c0
                     self.data[current][1] = c1
                     current += 1
 
                 if current == self.blockcount * Adquirer.RECORDER_BLOCKSIZE:
-                    self.handler(self.data)
+                    self.read_data.emit(self.data)
                     current = 0
 
                 if self.total == self.countlimit:
@@ -114,21 +113,28 @@ class Adquirer(Process):
     def was_recording_ok(self):
         """ Returns if the recording was successfull or not
         """
-        return (self.exit_code == Adquirer.OK_EXIT_CODE) or (self.exit_code == Recorder.STOPPED_EXIT_CODE)
-
-
-# Example block
-
-f = open('data_out.txt', 'wt')
-
-def sample_handler(data):
-    for i in range(len(data)):
-        f.write('%d %d\n' % (data[i][0], data[i][1]))
-        #print ("%s %s" % (hex(data[i][0]),(hex(data[i][1]))))
+        return (self.exit_code == Adquirer.OK_EXIT_CODE) or (self.exit_code == Adquirer.STOPPED_EXIT_CODE)
 
 
 if __name__ == "__main__":
-    p = Adquirer(port='/dev/cu.usbmodem1421', handler=sample_handler, timelimit=10)
+
+    import sys
+    from PyQt4.QtCore import QCoreApplication
+
+    # Example block
+    # f = open('data_out.txt', 'wt')
+
+    def sample_handler(data):
+        # print(len(data))
+        for i in range(len(data)):
+            print("%d %d" % (data[i][0], data[i][1]))
+            # f.write('%d %d\n' % (data[i][0], data[i][1]))
+
+
+    app = QCoreApplication(sys.argv)
+    p = Adquirer(port='COM5', timelimit=4)
+    p.read_data.connect(sample_handler)
     p.start()
-    p.join()
-    f.close()
+    # p.wait()
+    # f.close()
+    app.exec_()

@@ -8,10 +8,12 @@ from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QL
 from PyQt4.QtCore import QSize, QThread, pyqtSignal, Qt
 from PyQt4.QtCore import QSize
 import artwork.icons as fa
-from stimulation import Channel, SaccadicStimulus, Protocol
+from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
 
 from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
 from nsnyst.core import user_settings
+from nsnyst.visualization import SignalsRenderer
+from nsnyst.adquisition import Adquirer
 
 
 class GenericParametersWidget(QWidget):
@@ -377,6 +379,7 @@ class StimulatorWidget(QWidget):
         pass
 
     def show_stimulator(self):
+        return # TODO no
         if QDesktopWidget().numScreens() is 1:
             QMessageBox.warning(self, "Múltiples pantallas requeridas",
                                 "Para ejecutar esta funcionalidad se necesita otro monitor. " +
@@ -511,5 +514,13 @@ class MainWindow(QMainWindow):
 
         self.addToolBar(self.tool_bar)
 
+        self.signals_renderer = SignalsRenderer(self)
+        self.setCentralWidget(self.signals_renderer)
+
+        self.adquirer = Adquirer(port='COM5', timelimit=65)
+        self.adquirer.read_data.connect(self.signals_renderer.addSamples)
+        self.adquirer.start()
+
     def closeEvent(self, *args, **kwargs):
         self.stimulator.close()
+        self.adquirer.stop()
