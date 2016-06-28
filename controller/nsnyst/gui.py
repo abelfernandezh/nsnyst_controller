@@ -5,16 +5,13 @@ import random
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QBrush
-from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal
+    QBrush, QFileDialog
+from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime
 import artwork.icons as fa
-from stimulation import Channel, SaccadicStimulus, Protocol
 
 from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
 from nsnyst.core import user_settings
-from PyQt4.QtCore import QTime
-from storage import Record, Test, RecordsDBIndex, ProtocolsDBIndex
-from PyQt4.QtGui import QFileDialog
+from nsnyst.storage import Record, Test, RecordsDBIndex, ProtocolsDBIndex
 
 
 class GenericParametersWidget(QWidget):
