@@ -13,8 +13,10 @@ from stimulation import Channel, SaccadicStimulus, Protocol
 from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
 from nsnyst.core import user_settings
 from PyQt4.QtCore import QTime
-from storage import Record, Test, RecordsDBIndex
+from storage import Record, Test, RecordsDBIndex, ProtocolsDBIndex
 from PyQt4.QtGui import QFileDialog
+
+
 class GenericParametersWidget(QWidget):
     def __init__(self, parent=None):
         super(GenericParametersWidget, self).__init__(parent)
@@ -47,11 +49,12 @@ class GenericParametersWidget(QWidget):
     @property
     def channels(self):
         if self.vertical_channel.isChecked() and self.horizontal_channel.isChecked():
-            return 0
+            return Channel.Both_Channels
         if self.vertical_channel.isChecked():
             return Channel.Vertical_Channel
         if self.horizontal_channel.isChecked():
             return Channel.Horizontal_Channel
+        return None
 
 
 class PursuitStimuliParametersWidget(QWidget):
@@ -148,6 +151,8 @@ class CreateStimuliWidget(QDialog):
         name = self.generic.name
         duration = self.generic.duration
         channel = self.generic.channels
+        if channel is None:
+            channel = Channel.Both_Channels
 
         if self.stimulus_type == StimulusType.Saccadic:
             f_amplitude = self.saccadic_features.amplitude
@@ -250,7 +255,8 @@ class CreateProtocolWidget(QDialog):
     def accepted(self):
         protocol = Protocol(self.name, self.notes, 50)
         protocol.stimuli = self.stimuli_list
-        protocol.save()
+        ind = ProtocolsDBIndex()
+        ind.add_protocol(protocol)
 
         self.accept()
 
@@ -314,6 +320,55 @@ class CreateProtocolWidget(QDialog):
             self.v_stimuli_layout.addWidget(stimulus_widget)
             stimulus_widget.delete_stimulus.clicked.connect(self.delete_stimulus)
             stimulus_widget.edit_stimulus.clicked.connect(self.edit_stimulus)
+
+
+class ProtocolsManagement(QDialog):
+    def __init__(self, parent=None):
+        super(ProtocolsManagement, self).__init__(parent)
+        self.setWindowTitle('Gestión de Protocolos')
+
+        self.main_layout = QVBoxLayout()
+        self.protocols_layout = QVBoxLayout()
+        self.buttons_layout = QHBoxLayout()
+
+        self.label = QLabel('Protocolos\t\t\tNotas')
+
+        self.protocols_list = QListWidget()
+        self.update_list()
+        self.protocols_layout.addWidget(self.protocols_list)
+
+        self.add_protocol_button = QPushButton('+')
+        self.add_protocol_button.clicked.connect(self.add_protocol)
+        self.remove_protocol_button = QPushButton('-')
+        self.remove_protocol_button.clicked.connect(self.remove_protocol)
+        self.buttons_layout.addWidget(self.add_protocol_button)
+        self.buttons_layout.addWidget(self.remove_protocol_button)
+
+        self.main_layout.addWidget(self.label)
+        self.main_layout.addLayout(self.protocols_layout)
+        self.main_layout.addLayout(self.buttons_layout)
+        self.setLayout(self.main_layout)
+
+    def add_protocol(self):
+        cpw = CreateProtocolWidget(self)
+        cpw.exec()
+        self.update_list()
+
+    def remove_protocol(self):
+        selected = self.protocols_list.selectedItems()
+        name = selected[0].text().split('\t')[0]
+        ind = ProtocolsDBIndex()
+        ind.remove_protocol(name)
+        self.update_list()
+
+    def update_list(self):
+        self.protocols_list.clear()
+        ind = ProtocolsDBIndex()
+        for p in ind:
+            notes = ind.get_protocol(p).notes
+            lwi = QListWidgetItem()
+            lwi.setText(p + "\t---\t" + notes)
+            self.protocols_list.addItem(lwi)
 
 
 class RepaintThread(QThread):
@@ -530,9 +585,10 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
-        self.create_protocol = CreateProtocolWidget()
+        self.protocols_management = ProtocolsManagement(self)
         # self.stimulator = StimulatorWidget(268, 476)
         # self.stimulator.show_stimulator()
+
         r = Record('Rec_name', 'protocol')
         s = Record('another rec', 'prot name')
         t = Test()
@@ -541,30 +597,25 @@ class MainWindow(QMainWindow):
         u[Test.VERTICAL_CHANNEL] = [4.0, 2, 3, 4]
         r.add_test(t)
         s.add_test(u)
-        # print(t)
-        t = None
-        # print('getted test', r.get_test(0))
-        # print('getted test', r.get_test(0)[Test.HORIZONTAL_CHANNEL])
         db = RecordsDBIndex()
-        # db.add_record(r)
-        # db.add_record(s)
-        # db.write_to_json()
-        db.load_from_json()
-        for r in db.records:
+        db.add_record(r)
+        db.add_record(s)
+        db.write_to_json()
+        db = None
+        db_loaded = RecordsDBIndex()
+        db_loaded.load_from_json()
+        for r in db_loaded.records:
             for t in range(len(r.tests_names)):
                 te = r.get_test(t)
                 print(te.channels, te.test_type.name)
         # print(db.get_record(0).get_test(0).channels)
 
-
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
 
-        self.create_protocol = CreateProtocolWidget()
-
         fa_icon = fa.icon('fa.television')
-        self.add_stimuli_action = QAction(fa_icon, 'Crear nuevo estímulo', self.tool_bar)
-        self.add_stimuli_action.triggered.connect(self.create_protocol.exec)
+        self.add_stimuli_action = QAction(fa_icon, 'Gestionar protocolos', self.tool_bar)
+        self.add_stimuli_action.triggered.connect(self.protocols_management.exec)
         self.tool_bar.addAction(self.add_stimuli_action)
 
         self.settings_dialog = SettingsDialog()
@@ -574,5 +625,5 @@ class MainWindow(QMainWindow):
 
         self.addToolBar(self.tool_bar)
 
-    def closeEvent(self, *args, **kwargs):
-        self.stimulator.close()
+    # def closeEvent(self, *args, **kwargs):
+        # self.stimulator.close()

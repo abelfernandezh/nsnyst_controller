@@ -5,7 +5,7 @@ from os.path import dirname, join
 from os import makedirs, remove, rmdir
 from core import user_settings
 import pickle
-from stimulation import StimulusType
+from stimulation import StimulusType, Protocol, SaccadicStimulus, PursuitStimulus, Channel
 
 
 class Test:
@@ -39,22 +39,88 @@ class Test:
             raise KeyError('La prueba no contiene el canal especificado')
 
 
-class ProtocolRecord:
-    def __init__(self, name):
-        self.name = name
-
-    def to_json(self) -> str:
-        return json.dumps(self.information, indent=4)
-
-    @property
-    def information(self):
-        info = {'name': self.name}
-        return info
-
-
 class ProtocolsDBIndex:
-    def __init__(self, protocol_records):
-        self.protocol_records = protocol_records
+    protocols_record = None
+
+    def __init__(self, protocols_record: list=None):
+        if protocols_record is None:
+            if not self.load_from_json():
+                self.protocols_record = []
+        else:
+            self.protocols_record = protocols_record
+
+    def add_protocol(self, protocol: Protocol):
+        if protocol.name not in self.protocols_record:
+            self.protocols_record.append(protocol.name)
+        path = user_settings.value('workspace_path', dirname(__file__))
+        makedirs(join(path, 'ProtocolsDB'), exist_ok=True)
+        with open(join(path, 'ProtocolsDB', protocol.name + '.json'), 'w') as ofile:
+            json.dump(protocol.information, ofile, sort_keys=False, indent=4)
+        self.write_to_json()
+
+    def get_protocol(self, key) -> Protocol:
+        if type(key) is int:
+            filename = self.protocols_record[key]
+        elif type(key) is str and key in self.protocols_record:
+            filename = key
+        else:
+            raise KeyError('No se encuentra el protocolo especificado.')
+        path = user_settings.value('workspace_path', dirname(__file__))
+        with open(join(path, 'ProtocolsDB', filename + '.json'), 'r') as ifile:
+            info = json.load(ifile)
+        name = info['name']
+        notes = info['notes']
+        distance = info['distance']
+        protocol = Protocol(name, notes, distance)
+        for s in info['stimuli']:
+            name = s[1]['name']
+            duration = s[1]['duration']
+            channel = Channel(s[1]['channel'])
+            amplitude = s[1]['amplitude']
+            if s[0] == StimulusType.Saccadic.name:
+                fixation_duration = s[1]['fixation_duration']
+                variation = s[1]['variation']
+                stimulus = SaccadicStimulus(name, duration, amplitude, variation, fixation_duration, channel)
+            elif s[0] == StimulusType.Pursuit.name:
+                velocity = s[1]['velocity']
+                stimulus = PursuitStimulus(name, duration, amplitude, velocity, channel)
+            else:
+                raise ImportError('Tipo de estímulo incorrecto! Error al cargar.')
+            protocol.add_stimulus(stimulus)
+
+        return protocol
+
+    def remove_protocol(self, key):
+        if type(key) is int:
+            name = self.protocols_record[key]
+        elif type(key) is str and key in self.protocols_record:
+            name = key
+        else:
+            raise KeyError('No se encuentra el protocolo especificado.')
+        path = user_settings.value('workspace_path', dirname(__file__))
+        remove(join(path, 'ProtocolsDB', name + '.json'))
+        self.protocols_record.remove(name)
+        self.write_to_json()
+
+    def edit_protocol(self, key):
+        pass
+
+    def write_to_json(self):
+        path = user_settings.value('workspace_path', dirname(__file__))
+        with open(join(path, 'ProtocolsDbIndex.json'), 'w') as ofile:
+            json.dump(self.protocols_record, ofile, indent=4)
+
+    def load_from_json(self) -> bool:
+        path = user_settings.value('workspace_path', dirname(__file__))
+        try:
+            with open(join(path, 'ProtocolsDbIndex.json'), 'r') as ifile:
+                self.protocols_record = json.load(ifile)
+        except FileNotFoundError:
+            return False
+        return True
+
+    def __iter__(self):
+        return self.protocols_record.__iter__()
 
 
 class Record:
@@ -79,10 +145,9 @@ class Record:
         return record
 
     def dumps(self) -> str:
-        return json.dumps(self.information, indent=4)
+        return self.information
 
-    def loads(self, s: str):
-        info = json.loads(s)
+    def loads(self, info):
         self.record_name = info['record_name']
         self.protocol_name = info['protocol_name']
         self.date = date.fromordinal(info['date'])
@@ -124,13 +189,18 @@ class Record:
         path = user_settings.value('workspace_path', dirname(__file__))
         return path
 
+    @property
+    def name(self):
+        return self.record_name
+
 
 class RecordsDBIndex:
     records = []
 
     def __init__(self, records: list=None):
         if records is None:
-            self.records = []
+            if not self.load_from_json():
+                self.records = []
         else:
             self.records = records
 
@@ -153,12 +223,17 @@ class RecordsDBIndex:
 
     def load_from_json(self):
         path = self.get_path
-        with open(join(path, 'RecordsDbIndex.json'), 'r') as ifile:
-            info = json.load(ifile)
+        try:
+            with open(join(path, 'RecordsDbIndex.json'), 'r') as ifile:
+                info = json.load(ifile)
+        except FileNotFoundError:
+            return False
+
         for i in info:
             r = Record()
             r.loads(i)
             self.records.append(r)
+        return True
 
     @property
     def information(self):
@@ -172,4 +247,5 @@ class RecordsDBIndex:
         path = user_settings.value('workspace_path', dirname(__file__))
         return path
 
-
+    def __iter__(self):
+        return self.records.__iter__()
