@@ -5,7 +5,7 @@ import random
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QBrush
+    QBrush, QFileDialog, QSizePolicy
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal
 import artwork.icons as fa
 from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
@@ -13,7 +13,7 @@ from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
 from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
 from nsnyst.core import user_settings
 from nsnyst.visualization import SignalsRenderer
-from nsnyst.adquisition import Adquirer
+from nsnyst.adquisition import Adquirer, SerialHelper
 
 from PyQt4.QtCore import QTime
 
@@ -332,7 +332,7 @@ class RepaintThread(QThread):
         while self.stimulus.duration > 0:
             self.paintStimulus.emit()
             delay = self.get_delay()
-            print("Time elapsed: %d ms" % time.elapsed())
+            # print("Time elapsed: %d ms" % time.elapsed())
             self.msleep(delay)
             time.restart()
             self.stimulus.duration -= delay
@@ -449,10 +449,25 @@ class WorkspaceSettingsWidget(QWidget):
         self.screen_width.setMaximum(10000)
         self.screen_width.setValue(user_settings.value('screen_width', 0))
 
+        self.visualization_time_limit = QSpinBox()
+        self.visualization_time_limit.setSuffix(" s")
+        self.visualization_time_limit.setValue(user_settings.value('signals_renderer_time_limit', 10))
+
+        serial_port_name = user_settings.value('serial_port', '')
+        self.serial_port = QComboBox()
+
+        for index, port in zip(range(256), SerialHelper.getAvailablePorts()):
+            self.serial_port.addItem(port)
+
+            if serial_port_name == port:
+                self.serial_port.setCurrentIndex(index)
+
         self.main_layout = QFormLayout()
         self.main_layout.addRow("Largo del monitor:", self.screen_width)
         self.main_layout.addRow("Alto del monitor:", self.screen_height)
         self.main_layout.addRow("Ruta de trabajo:", self.container_layout)
+        self.main_layout.addRow("Tiempo de muestra en pantalla:", self.visualization_time_limit)
+        self.main_layout.addRow("Puerto serial:", self.serial_port)
         self.setLayout(self.main_layout)
 
     def _search_path(self):
@@ -466,6 +481,8 @@ class WorkspaceSettingsWidget(QWidget):
         user_settings.setValue('workspace_path', self.workspace_path.text())
         user_settings.setValue('screen_height', self.screen_height.value())
         user_settings.setValue('screen_width', self.screen_width.value())
+        user_settings.setValue('signals_renderer_time_limit', self.visualization_time_limit.value())
+        user_settings.setValue('serial_port', self.serial_port.currentText())
 
 
 class SettingsDialog(QDialog):
@@ -552,10 +569,25 @@ class MainWindow(QMainWindow):
 
         self.addToolBar(self.tool_bar)
 
-        self.signals_renderer = SignalsRenderer(self)
-        self.setCentralWidget(self.signals_renderer)
+        serial_port = user_settings.value('serial_port', '')
+        visualization_time_limit = user_settings.value('signals_renderer_time_limit', 10)
 
-        self.adquirer = Adquirer(port='COM5', timelimit=65)
+        self.central_widget = QWidget()
+        self.central_widget_layout = QVBoxLayout()
+        self.central_widget.setLayout(self.central_widget_layout)
+
+        self.signals_renderer = SignalsRenderer(parent=self, timeLimit=visualization_time_limit)
+        self.central_widget_layout.addWidget(self.signals_renderer)
+
+        self.button_list_widget = QWidget()
+        self.button_list_layout = QHBoxLayout()
+        self.button_list_widget.setLayout(self.button_list_layout)
+
+        # self.central_widget_layout.addWidget(self.button_list_widget)
+
+        self.setCentralWidget(self.central_widget)
+
+        self.adquirer = Adquirer(port=serial_port, timelimit=115)
         self.adquirer.read_data.connect(self.signals_renderer.addSamples)
         self.adquirer.start()
 

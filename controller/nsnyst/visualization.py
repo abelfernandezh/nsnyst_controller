@@ -2,9 +2,7 @@ from PyQt4.QtGui import QWidget, QPainter
 
 
 class SignalsRenderer(QWidget):
-    _timeLimit = 5
-    # _topViewport = None
-    # _bottomViewport = None
+    _timeLimit = 0
     _height = 0
     _width = 0
     _dY = 0
@@ -14,16 +12,35 @@ class SignalsRenderer(QWidget):
     _currentY2 = 0
     _blocks = []
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, timeLimit=10):
         super(SignalsRenderer, self).__init__(parent)
+        self._timeLimit = timeLimit
+        self.updatePaintingValues()
 
     def paintGrid(self):
         pass
 
+    @property
+    def timeLimit(self):
+        return self._timeLimit
+
+    @timeLimit.setter
+    def timeLimit(self, value):
+        self._timeLimit = value
+        self.updatePaintingValues()
+
+    def updatePaintingValues(self):
+        self._height = self.height()
+        self._width = self.width()
+
+        self._dX = self._width / (self._timeLimit * 1000)
+        self._currentX = 0
+        self._dY = self._height / 4096 / 2.1
+
+
     def addSamples(self, block):
         self._blocks = block
-        self.update(self._currentX, 0, self._width, self._height)
-        # self.update()
+        self.update(self._currentX, 0, self._dX*200, self._height)
 
     def paintEvent(self, QPaintEvent):
         painter = QPainter(self)
@@ -34,10 +51,10 @@ class SignalsRenderer(QWidget):
             y1 = self._height / 2 - self._blocks[i][0] * self._dY
             y2 = self._height - self._blocks[i][1] * self._dY
             x = self._currentX + self._dX
-            # y1 = self._blocks[i][0] * self._dY
-            # y2 = self._blocks[i][1] * self._dY + (self._height/2)
+
             painter.drawLine(self._currentX, self._currentY1, x, y1)
             painter.drawLine(self._currentX, self._currentY2, x, y2)
+
             self._currentX = x
             self._currentY1 = y1
             self._currentY2 = y2
@@ -47,9 +64,4 @@ class SignalsRenderer(QWidget):
         self._blocks = []
 
     def resizeEvent(self, QResizeEvent):
-        self._height = self.height()
-        self._width = self.width()
-
-        self._dX = self._width / (self._timeLimit * 1000)
-        self._currentX = 0
-        self._dY = self._height / 4096 / 2.1
+        self.updatePaintingValues()

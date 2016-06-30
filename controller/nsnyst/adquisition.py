@@ -8,6 +8,7 @@ __author__ = 'Carlos Cano Domingo <carcandom@uma.es>'
 from numpy import zeros, int16, ndarray
 from multiprocessing import Queue
 from serial import Serial
+from serial.tools import list_ports
 from time import sleep
 from PyQt4.QtCore import QThread, pyqtSignal
 
@@ -116,6 +117,17 @@ class Adquirer(QThread):
         return (self.exit_code == Adquirer.OK_EXIT_CODE) or (self.exit_code == Adquirer.STOPPED_EXIT_CODE)
 
 
+class SerialHelper:
+
+    @staticmethod
+    def getAvailablePorts():
+        ports = []
+        for port in list_ports.comports():
+            ports.append(port.device)
+
+        return ports
+
+
 if __name__ == "__main__":
 
     import sys
@@ -132,7 +144,7 @@ if __name__ == "__main__":
 
 
     app = QCoreApplication(sys.argv)
-    p = Adquirer(port='COM5', timelimit=4)
+    p = Adquirer(port='COM1', timelimit=4)
     p.read_data.connect(sample_handler)
     p.start()
     # p.wait()
