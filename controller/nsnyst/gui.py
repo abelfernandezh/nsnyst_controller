@@ -9,7 +9,7 @@ from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QL
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime
 import artwork.icons as fa
 
-from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
+from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
 from core import user_settings
 from storage import Record, Test, RecordsDBIndex, ProtocolsDBIndex
 
@@ -80,7 +80,8 @@ class SaccadicStimuliParametersWidget(QWidget):
     def __init__(self, parent=None):
         super(SaccadicStimuliParametersWidget, self).__init__(parent)
         self.fixation_duration = QSpinBox()
-        self.fixation_duration.setMaximumWidth(100)
+        # self.fixation_duration.setMaximumWidth(600)
+        self.fixation_duration.setRange(1, 600)
         self.fixation_amplitude = QSpinBox()
         self.fixation_amplitude.setMaximumWidth(100)
         self.fixation_variation = QSpinBox()
@@ -369,12 +370,8 @@ class ProtocolsManagement(QDialog):
         ind = ProtocolsDBIndex()
         protocol = ind.get_protocol(name)
 
-        self.stimulator = StimulatorWidget(protocol.stimuli[0], protocol.distance)
+        self.stimulator = StimulatorWidget(protocol)
         self.stimulator.show_stimulator()
-
-        # for stimulus in protocol.stimuli:
-        #     stimulator = StimulatorWidget(stimulus, protocol.distance)
-        #     stimulator.show_stimulator()
 
     def add_protocol(self):
         cpw = CreateProtocolWidget(self)
@@ -432,10 +429,8 @@ class RepaintThread(QThread):
 
 
 class StimulatorWidget(QWidget):
-    def __init__(self, stimulus=None, distance=None, parent=None):
+    def __init__(self, protocol: Protocol, parent=None):
         super(StimulatorWidget, self).__init__(parent)
-        if stimulus is None:
-            return
         self.screen = QDesktopWidget().screenGeometry(1)
         self.move(self.screen.left(), self.screen.top())
         self.height = self.screen.height()
@@ -443,27 +438,21 @@ class StimulatorWidget(QWidget):
         self.resize(self.screen.width(), self.screen.height())
         self.screen_2_height_mm = user_settings.value('screen_height', 0)
         self.screen_2_width_mm = user_settings.value('screen_width', 0)
-        # stimuli_test = SaccadicStimulus('Sacádica 30', 20000, 60, 20, 1000)
-        # stimuli_test2 = PursuitStimulus('Persecución 60', 10000, 45, 30)
-        self.stimulus = stimulus
-        self.stimulus.duration *= 1000
-        # self.protocol = Protocol('Protocolo de Prueba', 'Este es un protocolo para probar el estímulo', 300)
-        # self.protocol.add_stimulus(self.stimulus)
         self.pixel_size = self.screen_2_width_mm / self.screen.width()
+        self.protocol = protocol
+        self.distance = self.protocol.distance
+
+        self.stimulus = None
         self.sac_shift_factor = 1
-        # print(tan(radians(stimuli_test.amplitude/2)) * self.protocol.distance)
         self.time_since_start = 0
-        self.distance = distance
-        self.semi_length = tan(radians(self.stimulus.amplitude / 2)) * self.distance / 2
-
-        self.thread = RepaintThread(self.stimulus)
-        self.thread.start()
-        self.thread.paintStimulus.connect(self.show_paint)
-        self.thread.stopStimulus.connect(self.stop_paint)
+        self.semi_length = 0
+        self.thread = None
         self.should_paint = True
-
         self.previous_point = [0, 0]
-        self.current_point = [self.screen.width() / 2 - 15 + self.get_shift(), self.screen.height() / 2]
+        self.current_point = []
+
+        sti = protocol.stimuli[0]
+        self.stop_paint()
 
     def get_shift(self):
         if type(self.stimulus) == SaccadicStimulus:
@@ -511,10 +500,31 @@ class StimulatorWidget(QWidget):
     def stop_paint(self):
         self.should_paint = False
         self.update()
-        self.close()
+        if len(self.protocol.stimuli) > 0:
+            # show dialog, delay
+            QMessageBox.information(None, "Aviso",
+                                    "Comenzar prueba")
+            stimulus = self.protocol.stimuli[0]
+            self.protocol.stimuli.remove(stimulus)
+            self.paint_stimulus(stimulus)
+        else:
+            self.close()
 
-    def paint_stimuli(self, protocol):
-        pass
+    def paint_stimulus(self, stimulus: Stimulus):
+        self.stimulus = stimulus
+        self.stimulus.duration *= 1000
+        self.sac_shift_factor = 1
+        self.time_since_start = 0
+        self.semi_length = tan(radians(self.stimulus.amplitude / 2)) * self.distance / 2
+
+        self.thread = RepaintThread(self.stimulus)
+        self.thread.start()
+        self.thread.paintStimulus.connect(self.show_paint)
+        self.thread.stopStimulus.connect(self.stop_paint)
+        self.should_paint = True
+
+        self.previous_point = [0, 0]
+        self.current_point = [self.screen.width() / 2 - 15 + self.get_shift(), self.screen.height() / 2]
 
     def show_stimulator(self):
         if QDesktopWidget().numScreens() is 1:
