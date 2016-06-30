@@ -17,9 +17,6 @@ class SignalsRenderer(QWidget):
         self._timeLimit = timeLimit
         self.updatePaintingValues()
 
-    def paintGrid(self):
-        pass
-
     @property
     def timeLimit(self):
         return self._timeLimit
@@ -40,7 +37,7 @@ class SignalsRenderer(QWidget):
 
     def addSamples(self, block):
         self._blocks = block
-        self.update(self._currentX, 0, self._dX*200, self._height)
+        self.update(self._currentX, 0, self._width, self._height)
 
     def paintEvent(self, QPaintEvent):
         painter = QPainter(self)

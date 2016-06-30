@@ -582,8 +582,21 @@ class MainWindow(QMainWindow):
         self.button_list_widget = QWidget()
         self.button_list_layout = QHBoxLayout()
         self.button_list_widget.setLayout(self.button_list_layout)
+        self.button_list_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
-        # self.central_widget_layout.addWidget(self.button_list_widget)
+        self.renderer_time_decrease_button = QPushButton()
+        self.renderer_time_decrease_button.setIcon(fa.icon('fa.minus'))
+        self.renderer_time_decrease_button.clicked.connect(self.renderer_time_decrease)
+
+        self.renderer_time_increase_button = QPushButton()
+        self.renderer_time_increase_button.setIcon(fa.icon('fa.plus'))
+        self.renderer_time_increase_button.clicked.connect(self.renderer_time_increase)
+
+        self.button_list_layout.addStretch()
+        self.button_list_layout.addWidget(self.renderer_time_decrease_button)
+        self.button_list_layout.addWidget(self.renderer_time_increase_button)
+
+        self.central_widget_layout.addWidget(self.button_list_widget)
 
         self.setCentralWidget(self.central_widget)
 
@@ -594,3 +607,10 @@ class MainWindow(QMainWindow):
     def closeEvent(self, *args, **kwargs):
         self.stimulator.close()
         self.adquirer.stop()
+
+    def renderer_time_decrease(self):
+        if self.signals_renderer.timeLimit > 5:
+            self.signals_renderer.timeLimit -= 5
+
+    def renderer_time_increase(self):
+        self.signals_renderer.timeLimit += 5
