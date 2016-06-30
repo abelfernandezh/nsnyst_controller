@@ -6,6 +6,7 @@ from os import makedirs, remove, rmdir
 from core import user_settings
 import pickle
 from stimulation import StimulusType, Protocol, SaccadicStimulus, PursuitStimulus, Channel
+from collections import OrderedDict
 
 
 class Test:
@@ -136,12 +137,11 @@ class Record:
 
     @property
     def information(self):
-        record = {
-            'record_name': self.record_name,
-            'protocol_name': self.protocol_name,
-            'date': self.date.toordinal(),
-            'tests_names': self.tests_names
-        }
+        record = OrderedDict()
+        record['record_name'] = self.record_name
+        record['protocol_name'] = self.protocol_name
+        record['date'] = self.date.toordinal()
+        record['tests_names'] = self.tests_names
         return record
 
     def dumps(self) -> str:
@@ -153,9 +153,14 @@ class Record:
         self.date = date.fromordinal(info['date'])
         self.tests_names = info['tests_names']
 
-    def get_test(self, index) -> Test:
+    def get_test(self, key) -> Test:
+        if type(key) is int:
+            filename = self.tests_names[key]
+        elif type(key) is str and key in self.tests_names:
+            filename = key
+        else:
+            raise KeyError('No se encuentra el protocolo especificado.')
         path = self.get_path
-        filename = self.tests_names[index]
         with open(join(path, filename), 'rb') as ifile:
             test = pickle.load(ifile)
             return test
@@ -193,6 +198,9 @@ class Record:
     def name(self):
         return self.record_name
 
+    def __iter__(self):
+        return self.tests_names.__iter__()
+
 
 class RecordsDBIndex:
     records = []
@@ -208,6 +216,19 @@ class RecordsDBIndex:
         return self.records[index]
 
     def add_record(self, record: Record):
+        for rec in self.records:
+            #
+            if record.protocol_name == rec.protocol_name and record.record_name == rec.record_name:
+                print("Registro preexistente. Ya existía una registro del mismo nombre para este protocolo. " +
+                      "Sus pruebas se combinaron en el mismo directorio")
+                # raise Warning("Registro preexistente. Ya existía una registro del mismo nombre para este protocolo."+
+                #               "Sus pruebas se combinarán en el mismo directorio")
+                record.tests_names.extend(rec.tests_names)
+                rec.tests_names = list(sorted(set(record.tests_names)))
+                rec.date = record.date
+                self.write_to_json()
+                return
+        #
         self.records.append(record)
         self.write_to_json()
 
@@ -229,6 +250,7 @@ class RecordsDBIndex:
         except FileNotFoundError:
             return False
 
+        self.records.clear()
         for i in info:
             r = Record()
             r.loads(i)

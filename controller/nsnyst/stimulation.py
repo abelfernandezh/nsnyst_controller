@@ -1,4 +1,5 @@
 from enum import Enum
+from collections import OrderedDict
 from os.path import dirname
 from math import radians
 import json
@@ -33,8 +34,13 @@ class SaccadicStimulus(Stimulus):
 
     @property
     def information(self):
-        information = {'name': self.name, 'duration': self.duration, 'fixation_duration': self.fixation_duration,
-                       'amplitude': self.amplitude, 'variation': self.variation, 'channel': self.channel.value}
+        information = OrderedDict()
+        information['name'] = self.name
+        information['duration'] = self.duration
+        information['fixation_duration'] = self.fixation_duration
+        information['amplitude'] = self.amplitude
+        information['variation'] = self.variation
+        information['channel'] = self.channel.value
         return information
 
 
@@ -46,8 +52,12 @@ class PursuitStimulus(Stimulus):
 
     @property
     def information(self):
-        stimulus = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
-                    'velocity': self.velocity, 'channel': self.channel.value}
+        stimulus = OrderedDict()
+        stimulus['name'] = self.name
+        stimulus['duration'] = self.duration
+        stimulus['amplitude'] = self.amplitude
+        stimulus['velocity'] = self.velocity
+        stimulus['channel'] = self.channel.value
         return stimulus
 
 
@@ -72,7 +82,11 @@ class Protocol:
 
     @property
     def information(self):
-        protocol = {'name': self.name, 'notes': self.notes, 'distance': self.subject_distance, 'stimuli': []}
+        protocol = OrderedDict()
+        protocol['name'] = self.name
+        protocol['notes'] = self.notes
+        protocol['distance'] = self.subject_distance
+        protocol['stimuli'] = []
 
         for stimulus in self.stimuli:
             if type(stimulus) == SaccadicStimulus:
