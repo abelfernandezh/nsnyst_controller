@@ -5,9 +5,10 @@ import random
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QBrush, QFileDialog
+    QBrush, QFileDialog, QIcon
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime
 import artwork.icons as fa
+from os.path import join
 
 from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
 from core import user_settings
@@ -343,12 +344,24 @@ class ProtocolsManagement(QDialog):
         self.update_list()
         self.protocols_layout.addWidget(self.protocols_list)
 
-        self.add_protocol_button = QPushButton('+')
+        self.add_protocol_button = QPushButton()
+        self.add_protocol_button.setIcon(QIcon(join('icons', 'add_protocol.svg')))
+        self.add_protocol_button.setIconSize(QSize(20, 20))
+        self.add_protocol_button.setToolTip('Agregar protocolo')
         self.add_protocol_button.clicked.connect(self.add_protocol)
-        self.remove_protocol_button = QPushButton('-')
+
+        self.remove_protocol_button = QPushButton()
+        self.remove_protocol_button.setIcon(QIcon(join('icons', 'remove_protocol.svg')))
+        self.remove_protocol_button.setIconSize(QSize(20, 20))
+        self.remove_protocol_button.setToolTip('Eliminar protocolo')
         self.remove_protocol_button.clicked.connect(self.remove_protocol)
+
         self.start_test_button = QPushButton('Start test')
+        self.start_test_button.setIcon(QIcon(join('icons', 'start_record.svg')))
+        self.start_test_button.setIconSize(QSize(20, 20))
+        self.start_test_button.setToolTip('Comenzar a registrar una prueba')
         self.start_test_button.clicked.connect(self.start_test)
+
         self.buttons_layout.addWidget(self.add_protocol_button)
         self.buttons_layout.addWidget(self.remove_protocol_button)
         self.buttons_layout.addWidget(self.start_test_button)
@@ -541,7 +554,7 @@ class WorkspaceSettingsWidget(QWidget):
         self.workspace_path = QLineEdit(user_settings.value('workspace_path', dirname(__file__)))
         self.workspace_path.setReadOnly(True)
 
-        self.search_path_button = QPushButton("Seleccionar")
+        self.search_path_button = QPushButton(QIcon(join('icons', 'select_path.svg')), "Seleccionar")
         self.search_path_button.clicked.connect(self._search_path)
 
         self.container_layout = QHBoxLayout()
@@ -613,7 +626,7 @@ class SettingsDialog(QDialog):
 
         self.setLayout(self._main_layout)
 
-        self.add_item("Entorno de trabajo", fa.icon('fa.folder'), WorkspaceSettingsWidget())
+        self.add_item("Entorno de trabajo", QIcon(join('icons', 'workspace.svg')), WorkspaceSettingsWidget())
 
     def accepted(self):
         for i in range(self.pages_widget.count()):
@@ -668,13 +681,12 @@ class MainWindow(QMainWindow):
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
 
-        fa_icon = fa.icon('fa.television')
-        self.add_stimuli_action = QAction(fa_icon, 'Gestionar protocolos', self.tool_bar)
-        self.add_stimuli_action.triggered.connect(self.protocols_management.exec)
-        self.tool_bar.addAction(self.add_stimuli_action)
+        self.protocols_action = QAction(QIcon(join('icons', 'protocols.svg')), 'Gestionar protocolos', self.tool_bar)
+        self.protocols_action.triggered.connect(self.protocols_management.exec)
+        self.tool_bar.addAction(self.protocols_action)
 
         self.settings_dialog = SettingsDialog()
-        self.settings_action = QAction(fa.icon('fa.cog'), 'Configuración', self.tool_bar)
+        self.settings_action = QAction(QIcon(join('icons', 'settings.svg')), 'Configuración', self.tool_bar)
         self.settings_action.triggered.connect(self.settings_dialog.exec)
         self.tool_bar.addAction(self.settings_action)
 
