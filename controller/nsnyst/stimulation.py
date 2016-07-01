@@ -1,4 +1,5 @@
 from enum import Enum
+from collections import OrderedDict
 from os.path import dirname
 from math import radians
 import json
@@ -7,6 +8,7 @@ from core import user_settings
 
 
 class Channel(Enum):
+    Both_Channels = 0
     Horizontal_Channel = 1
     Vertical_Channel = 2
 
@@ -17,14 +19,14 @@ class StimulusType(Enum):
 
 
 class Stimulus:
-    def __init__(self, name, duration, channel=0):
+    def __init__(self, name, duration, channel=Channel.Both_Channels):
         self.name = name
         self.channel = channel
         self.duration = duration
 
 
 class SaccadicStimulus(Stimulus):
-    def __init__(self, name, duration, amplitude, variation, fixation_duration, channel=0):
+    def __init__(self, name, duration, amplitude, variation, fixation_duration, channel=Channel.Both_Channels):
         super(SaccadicStimulus, self).__init__(name, duration, channel)
         self.amplitude = amplitude
         self.fixation_duration = fixation_duration
@@ -32,25 +34,30 @@ class SaccadicStimulus(Stimulus):
 
     @property
     def information(self):
-        information = {'name': self.name, 'duration': self.duration, 'fixation_duration': self.fixation_duration,
-                       'amplitude': self.amplitude, 'variation': self.variation, 'channel': self.channel}
-        if self.channel != 0:
-            information['channel'] = self.channel.value
+        information = OrderedDict()
+        information['name'] = self.name
+        information['duration'] = self.duration
+        information['fixation_duration'] = self.fixation_duration
+        information['amplitude'] = self.amplitude
+        information['variation'] = self.variation
+        information['channel'] = self.channel.value
         return information
 
 
 class PursuitStimulus(Stimulus):
-    def __init__(self, name, duration, amplitude, velocity, channel=0):
+    def __init__(self, name, duration, amplitude, velocity, channel=Channel.Both_Channels):
         super(PursuitStimulus, self).__init__(name, duration, channel)
         self.amplitude = amplitude
         self.velocity = velocity
 
     @property
     def information(self):
-        stimulus = {'name': self.name, 'duration': self.duration, 'amplitude': self.amplitude,
-                    'velocity': self.velocity, 'channel': self.channel}
-        if self.channel != 0:
-            stimulus['channel'] = self.channel.value
+        stimulus = OrderedDict()
+        stimulus['name'] = self.name
+        stimulus['duration'] = self.duration
+        stimulus['amplitude'] = self.amplitude
+        stimulus['velocity'] = self.velocity
+        stimulus['channel'] = self.channel.value
         return stimulus
 
 
@@ -75,19 +82,21 @@ class Protocol:
 
     @property
     def information(self):
-        protocol = {'name': self.name, 'notes': self.notes, 'saccadic_stimuli': [], 'pursuit_stimuli': []}
+        protocol = OrderedDict()
+        protocol['name'] = self.name
+        protocol['notes'] = self.notes
+        protocol['distance'] = self.subject_distance
+        protocol['stimuli'] = []
 
         for stimulus in self.stimuli:
             if type(stimulus) == SaccadicStimulus:
-                protocol['saccadic_stimuli'].append(stimulus.information)
+                s_type = StimulusType.Saccadic
             else:
-                protocol['pursuit_stimuli'].append(stimulus.information)
+                s_type = StimulusType.Pursuit
+
+            protocol['stimuli'].append([s_type.name, stimulus.information])
 
         return protocol
 
     def add_stimulus(self, stimulus):
         self.stimuli.append(stimulus)
-
-    def save(self):
-        path = user_settings.value('workspace_path', dirname(__file__))
-        json.dump(self.information, open(path + '/' + self.name + '.json', 'w'), sort_keys=False, indent=4)

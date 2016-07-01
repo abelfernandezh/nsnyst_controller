@@ -5,14 +5,15 @@ import random
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QBrush
-from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal
+    QBrush, QFileDialog, QIcon
+from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime
 import artwork.icons as fa
-from stimulation import Channel, SaccadicStimulus, Protocol
+from os.path import join
 
-from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
-from nsnyst.core import user_settings
-from PyQt4.QtCore import QTime
+from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
+from core import user_settings
+from storage import Record, Test, RecordsDBIndex, ProtocolsDBIndex
+
 
 class GenericParametersWidget(QWidget):
     def __init__(self, parent=None):
@@ -46,11 +47,12 @@ class GenericParametersWidget(QWidget):
     @property
     def channels(self):
         if self.vertical_channel.isChecked() and self.horizontal_channel.isChecked():
-            return 0
+            return Channel.Both_Channels
         if self.vertical_channel.isChecked():
             return Channel.Vertical_Channel
         if self.horizontal_channel.isChecked():
             return Channel.Horizontal_Channel
+        return None
 
 
 class PursuitStimuliParametersWidget(QWidget):
@@ -79,14 +81,15 @@ class SaccadicStimuliParametersWidget(QWidget):
     def __init__(self, parent=None):
         super(SaccadicStimuliParametersWidget, self).__init__(parent)
         self.fixation_duration = QSpinBox()
-        self.fixation_duration.setMaximumWidth(100)
+        # self.fixation_duration.setMaximumWidth(600)
+        self.fixation_duration.setRange(1, 600)
         self.fixation_amplitude = QSpinBox()
         self.fixation_amplitude.setMaximumWidth(100)
         self.fixation_variation = QSpinBox()
         self.fixation_variation.setMaximumWidth(100)
 
         self.f_layout = QFormLayout()
-        self.f_layout.addRow('Duración', self.fixation_duration)
+        self.f_layout.addRow('Duración de la fijación', self.fixation_duration)
         self.f_layout.addRow('Amplitud', self.fixation_amplitude)
         self.f_layout.addRow('Variación', self.fixation_variation)
         self.setLayout(self.f_layout)
@@ -147,6 +150,8 @@ class CreateStimuliWidget(QDialog):
         name = self.generic.name
         duration = self.generic.duration
         channel = self.generic.channels
+        if channel is None:
+            channel = Channel.Both_Channels
 
         if self.stimulus_type == StimulusType.Saccadic:
             f_amplitude = self.saccadic_features.amplitude
@@ -220,9 +225,13 @@ class CreateProtocolWidget(QDialog):
         self.protocol_name = QLineEdit()
         self.protocol_notes = QTextEdit()
         self.protocol_notes.setMaximumHeight(50)
+        self.protocol_distance = QSpinBox()
+        self.protocol_distance.setRange(100, 5000)
+        self.protocol_distance.setValue(400)
 
         self.f_layout.addRow('Nombre', self.protocol_name)
         self.f_layout.addRow('Notas', self.protocol_notes)
+        self.f_layout.addRow('Distancia', self.protocol_distance)
 
         self.add_stimulus_button = QPushButton(fa.icon('fa.plus'), '')
         self.add_stimulus_button.clicked.connect(self.add_stimulus)
@@ -246,10 +255,15 @@ class CreateProtocolWidget(QDialog):
     def notes(self):
         return self.protocol_notes.toPlainText()
 
+    @property
+    def distance(self):
+        return self.protocol_distance.value()
+
     def accepted(self):
-        protocol = Protocol(self.name, self.notes, 50)
+        protocol = Protocol(self.name, self.notes, self.distance)
         protocol.stimuli = self.stimuli_list
-        protocol.save()
+        ind = ProtocolsDBIndex()
+        ind.add_protocol(protocol)
 
         self.accept()
 
@@ -315,6 +329,89 @@ class CreateProtocolWidget(QDialog):
             stimulus_widget.edit_stimulus.clicked.connect(self.edit_stimulus)
 
 
+class ProtocolsManagement(QDialog):
+    def __init__(self, parent=None):
+        super(ProtocolsManagement, self).__init__(parent)
+        self.setWindowTitle('Gestión de Protocolos')
+
+        self.main_layout = QVBoxLayout()
+        self.protocols_layout = QVBoxLayout()
+        self.buttons_layout = QHBoxLayout()
+
+        self.label = QLabel('Protocolos\t\t\tNotas')
+
+        self.protocols_list = QListWidget()
+        self.update_list()
+        self.protocols_layout.addWidget(self.protocols_list)
+
+        self.add_protocol_button = QPushButton()
+        self.add_protocol_button.setIcon(QIcon(join('icons', 'add_protocol.svg')))
+        self.add_protocol_button.setIconSize(QSize(20, 20))
+        self.add_protocol_button.setToolTip('Agregar protocolo')
+        self.add_protocol_button.clicked.connect(self.add_protocol)
+
+        self.remove_protocol_button = QPushButton()
+        self.remove_protocol_button.setIcon(QIcon(join('icons', 'remove_protocol.svg')))
+        self.remove_protocol_button.setIconSize(QSize(20, 20))
+        self.remove_protocol_button.setToolTip('Eliminar protocolo')
+        self.remove_protocol_button.clicked.connect(self.remove_protocol)
+
+        self.start_test_button = QPushButton('Start test')
+        self.start_test_button.setIcon(QIcon(join('icons', 'start_record.svg')))
+        self.start_test_button.setIconSize(QSize(20, 20))
+        self.start_test_button.setToolTip('Comenzar a registrar una prueba')
+        self.start_test_button.clicked.connect(self.start_test)
+
+        self.buttons_layout.addWidget(self.add_protocol_button)
+        self.buttons_layout.addWidget(self.remove_protocol_button)
+        self.buttons_layout.addWidget(self.start_test_button)
+
+        self.main_layout.addWidget(self.label)
+        self.main_layout.addLayout(self.protocols_layout)
+        self.main_layout.addLayout(self.buttons_layout)
+        self.setLayout(self.main_layout)
+
+        self.stimulator = None
+
+    def start_test(self):
+        selected = self.protocols_list.selectedItems()
+        if len(selected) == 0:
+            QMessageBox.warning(self, "Error de selección",
+                                "Debe seleccionar un protocolo.")
+            return
+        name = selected[0].text().split('\t')[0]
+        ind = ProtocolsDBIndex()
+        protocol = ind.get_protocol(name)
+
+        self.stimulator = StimulatorWidget(protocol)
+        self.stimulator.show_stimulator()
+
+    def add_protocol(self):
+        cpw = CreateProtocolWidget(self)
+        cpw.exec()
+        self.update_list()
+
+    def remove_protocol(self):
+        selected = self.protocols_list.selectedItems()
+        if len(selected) == 0:
+            QMessageBox.warning(self, "Error de selección",
+                                "Debe seleccionar un protocolo.")
+            return
+        name = selected[0].text().split('\t')[0]
+        ind = ProtocolsDBIndex()
+        ind.remove_protocol(name)
+        self.update_list()
+
+    def update_list(self):
+        self.protocols_list.clear()
+        ind = ProtocolsDBIndex()
+        for p in ind:
+            notes = ind.get_protocol(p).notes
+            lwi = QListWidgetItem()
+            lwi.setText(p + "\t---\t" + notes)
+            self.protocols_list.addItem(lwi)
+
+
 class RepaintThread(QThread):
     paintStimulus = pyqtSignal()
     stopStimulus = pyqtSignal()
@@ -324,14 +421,14 @@ class RepaintThread(QThread):
         self.stimulus = stimulus
 
     def run(self):
-        time = QTime()
-        time.start()
+        # time = QTime()
+        # time.start()
         while self.stimulus.duration > 0:
             self.paintStimulus.emit()
             delay = self.get_delay()
-            print("Time elapsed: %d ms" % time.elapsed())
+            # print("Time elapsed: %d ms" % time.elapsed())
             self.msleep(delay)
-            time.restart()
+            # time.restart()
             self.stimulus.duration -= delay
         self.stopStimulus.emit()
 
@@ -345,47 +442,51 @@ class RepaintThread(QThread):
 
 
 class StimulatorWidget(QWidget):
-    def __init__(self, screen_2_height_mm, screen_2_width_mm, parent=None):
+    def __init__(self, protocol: Protocol, parent=None):
         super(StimulatorWidget, self).__init__(parent)
         self.screen = QDesktopWidget().screenGeometry(1)
         self.move(self.screen.left(), self.screen.top())
         self.height = self.screen.height()
         self.width = self.screen.width()
         self.resize(self.screen.width(), self.screen.height())
-        stimuli_test = SaccadicStimulus('Sacádica 30', 20000, 60, 20, 1000)
-        stimuli_test2 = PursuitStimulus('Persecución 60', 60000, 90, 50)
-        self.current_stimulus = stimuli_test2
-        self.protocol = Protocol('Protocolo de Prueba', 'Este es un protocolo para probar el estímulo', 300)
-        self.protocol.add_stimulus(self.current_stimulus)
-        self.pixel_size = screen_2_width_mm / self.screen.width()
-        self.sac_shift_factor = 1
-        # print(tan(radians(stimuli_test.amplitude/2)) * self.protocol.distance)
-
-        self.time_since_start = 0
-        self.semi_length = tan(radians(self.current_stimulus.amplitude / 2)) * self.protocol.distance
+        self.screen_2_height_mm = user_settings.value('screen_height', 0)
+        self.screen_2_width_mm = user_settings.value('screen_width', 0)
+        self.pixel_size = self.screen_2_width_mm / self.screen.width()
+        self.protocol = protocol
         self.distance = self.protocol.distance
 
-        self.thread = RepaintThread(self.current_stimulus)
-        self.thread.start()
-        self.thread.paintStimulus.connect(self.show_paint)
-        self.thread.stopStimulus.connect(self.stop_paint)
+        self.stimulus = None
+        self.sac_shift_factor = 1
+        self.time_since_start = 0
+        self.semi_length = 0
+        self.thread = None
         self.should_paint = True
-
         self.previous_point = [0, 0]
-        self.current_point = [self.screen.width() / 2 - 15 + self.get_shift(), self.screen.height() / 2]
+        self.current_point = []
+
+        sti = protocol.stimuli[0]
+        self.stop_paint()
 
     def get_shift(self):
-        if type(self.current_stimulus) == SaccadicStimulus:
+        if type(self.stimulus) == SaccadicStimulus:
             self.sac_shift_factor *= -1
-            diff_sac = tan(radians(self.current_stimulus.amplitude)) * self.protocol.distance
+            diff_sac = tan(radians(self.stimulus.amplitude)) * self.distance
             return diff_sac * self.sac_shift_factor
         else:
-            time_for_round = self.current_stimulus.amplitude / (self.current_stimulus.velocity / 1000)
-            alpha = (self.current_stimulus.velocity / 1000) * (self.time_since_start % time_for_round)
+            time_for_round = self.stimulus.amplitude / (self.stimulus.velocity / 1000)
+            # alpha = (self.current_stimulus.velocity / 1000) * (self.time_since_start % time_for_round)
+            # if int(self.time_since_start / time_for_round) % 2 == 1:
+            #     alpha = self.current_stimulus.amplitude - alpha
+            # print(alpha)
+            # diff = -self.distance * tan(radians(self.current_stimulus.amplitude / 2 - alpha))
+            pixels = 2 * self.semi_length / self.pixel_size
+            pixels_per_ms = pixels / time_for_round
+            t = self.time_since_start % time_for_round
+            diff = pixels_per_ms * t
             if int(self.time_since_start / time_for_round) % 2 == 1:
-                alpha = self.current_stimulus.amplitude - alpha
-            print(alpha)
-            diff = -self.distance * tan(radians(self.current_stimulus.amplitude / 2 - alpha))
+                diff -= pixels / 2
+            else:
+                diff = pixels / 2 - diff
             self.time_since_start += 8
             return diff
 
@@ -404,22 +505,46 @@ class StimulatorWidget(QWidget):
             self.current_point = [x, y]
 
     def show_paint(self):
-        self.update(self.previous_point[0] - 10, self.previous_point[1], 50, 32)
-        self.update(self.current_point[0] - 10, self.current_point[1], 50, 32)
+        self.update()
+        # if type(self.stimulus) is SaccadicStimulus:
+        #     self.update(self.previous_point[0] - 15, self.previous_point[1], 60, 32)
+        # self.update(self.current_point[0] - 15, self.current_point[1], 60, 32)
 
     def stop_paint(self):
         self.should_paint = False
         self.update()
+        if len(self.protocol.stimuli) > 0:
+            # show dialog, delay
+            QMessageBox.information(None, "Aviso",
+                                    "Comenzar prueba")
+            stimulus = self.protocol.stimuli[0]
+            self.protocol.stimuli.remove(stimulus)
+            self.paint_stimulus(stimulus)
+        else:
+            self.close()
 
-    def paint_stimuli(self, protocol):
-        pass
+    def paint_stimulus(self, stimulus: Stimulus):
+        self.stimulus = stimulus
+        self.stimulus.duration *= 1000
+        self.sac_shift_factor = 1
+        self.time_since_start = 0
+        self.semi_length = tan(radians(self.stimulus.amplitude / 2)) * self.distance / 2
+
+        self.thread = RepaintThread(self.stimulus)
+        self.thread.start()
+        self.thread.paintStimulus.connect(self.show_paint)
+        self.thread.stopStimulus.connect(self.stop_paint)
+        self.should_paint = True
+
+        self.previous_point = [0, 0]
+        self.current_point = [self.screen.width() / 2 - 15 + self.get_shift(), self.screen.height() / 2]
 
     def show_stimulator(self):
-        # if QDesktopWidget().numScreens() is 1:
-        #     QMessageBox.warning(self, "Múltiples pantallas requeridas",
-        #                         "Para ejecutar esta funcionalidad se necesita otro monitor. " +
-        #                         "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
-        # else:
+        if QDesktopWidget().numScreens() is 1:
+            QMessageBox.warning(self, "Múltiples pantallas requeridas",
+                                "Para ejecutar esta funcionalidad se necesita otro monitor. " +
+                                "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
+        else:
             self.showFullScreen()
 
 
@@ -429,7 +554,7 @@ class WorkspaceSettingsWidget(QWidget):
         self.workspace_path = QLineEdit(user_settings.value('workspace_path', dirname(__file__)))
         self.workspace_path.setReadOnly(True)
 
-        self.search_path_button = QPushButton("Seleccionar")
+        self.search_path_button = QPushButton(QIcon(join('icons', 'select_path.svg')), "Seleccionar")
         self.search_path_button.clicked.connect(self._search_path)
 
         self.container_layout = QHBoxLayout()
@@ -501,7 +626,7 @@ class SettingsDialog(QDialog):
 
         self.setLayout(self._main_layout)
 
-        self.add_item("Entorno de trabajo", fa.icon('fa.folder'), WorkspaceSettingsWidget())
+        self.add_item("Entorno de trabajo", QIcon(join('icons', 'workspace.svg')), WorkspaceSettingsWidget())
 
     def accepted(self):
         for i in range(self.pages_widget.count()):
@@ -529,25 +654,43 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
-        self.create_protocol = CreateProtocolWidget()
-        self.stimulator = StimulatorWidget(268, 476)
-        self.stimulator.show_stimulator()
+        self.protocols_management = ProtocolsManagement(self)
+        # self.stimulator = StimulatorWidget()
+        # self.stimulator.show_stimulator()
+
+        # r = Record('Rec_name', 'protocol')
+        # s = Record('another rec', 'prot name')
+        # t = Test()
+        # u = Test()
+        # t[Test.HORIZONTAL_CHANNEL] = [1, 2, 3, 4]
+        # u[Test.VERTICAL_CHANNEL] = [4.0, 2, 3, 4]
+        # r.add_test(t)
+        # s.add_test(u)
+        # db = RecordsDBIndex()
+        # db.add_record(r)
+        # db.add_record(s)
+        # db.write_to_json()
+        # db = None
+        # db_loaded = RecordsDBIndex()
+        # for r in db_loaded:
+        #     # print("\nRecord: ", r.name, ' ********* ', len(r.tests_names), ' tests.')
+        #     for test_name in r:
+        #         te = r.get_test(test_name)
+        #         # print(te.channels, te.test_type.name)
+
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
 
-        self.create_protocol = CreateProtocolWidget()
-
-        fa_icon = fa.icon('fa.television')
-        self.add_stimuli_action = QAction(fa_icon, 'Crear nuevo estímulo', self.tool_bar)
-        self.add_stimuli_action.triggered.connect(self.create_protocol.exec)
-        self.tool_bar.addAction(self.add_stimuli_action)
+        self.protocols_action = QAction(QIcon(join('icons', 'protocols.svg')), 'Gestionar protocolos', self.tool_bar)
+        self.protocols_action.triggered.connect(self.protocols_management.exec)
+        self.tool_bar.addAction(self.protocols_action)
 
         self.settings_dialog = SettingsDialog()
-        self.settings_action = QAction(fa.icon('fa.cog'), 'Configuración', self.tool_bar)
+        self.settings_action = QAction(QIcon(join('icons', 'settings.svg')), 'Configuración', self.tool_bar)
         self.settings_action.triggered.connect(self.settings_dialog.exec)
         self.tool_bar.addAction(self.settings_action)
 
         self.addToolBar(self.tool_bar)
 
-    def closeEvent(self, *args, **kwargs):
-        self.stimulator.close()
+    # def closeEvent(self, *args, **kwargs):
+    #     self.stimulator.close()
