@@ -123,6 +123,9 @@ class ProtocolsDBIndex:
     def __iter__(self):
         return self.protocols_record.__iter__()
 
+    def __contains__(self, item):
+        return item in self.protocols_record
+
 
 class Record:
     def __init__(self, record_name: str='', protocol_name: str='', tests_names: list=None,
