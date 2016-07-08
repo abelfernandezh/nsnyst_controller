@@ -149,7 +149,7 @@ class CreateStimuliWidget(QDialog):
         self.button_box = QDialogButtonBox()
 
         self.button_box.addButton('', QDialogButtonBox.AcceptRole).setIcon(QIcon(join('icons', 'save.svg')))
-        self.button_box.addButton('', QDialogButtonBox.RejectRole).setIcon(QIcon(join('icons', 'cancel.svg')))
+        self.button_box.addButton('', QDialogButtonBox.RejectRole).setText('Cancelar')
 
         self.main_layout.addLayout(self.h_layout)
         self.main_layout.addWidget(self.button_box)
@@ -307,8 +307,7 @@ class CreateProtocolWidget(QDialog):
             return
         msgbox = QMessageBox(QMessageBox.Question, 'Guardar protocolo', "Una vez guardado, el protocolo "
                                                                         "no podrá ser modificado.", parent=self)
-
-        msgbox.setInformativeText("Desea guardar el protocolo?")
+        msgbox.setInformativeText("¿Desea guardar el protocolo?")
         save = QPushButton('Guardar')
         msgbox.addButton(save, QMessageBox.AcceptRole)
         msgbox.addButton(QPushButton('Cancelar'), QMessageBox.RejectRole)
@@ -343,7 +342,7 @@ class CreateProtocolWidget(QDialog):
                 widget.marked_for_edition = False
                 break
 
-        edit_stimulus = CreateStimuliWidget()
+        edit_stimulus = CreateStimuliWidget(self)
         edit_stimulus.setWindowTitle('Editar estímulo')
         stimulus = self.stimuli_list[index]
         stimulus_type = 0
@@ -490,13 +489,43 @@ class ProtocolsManagementDialog(QDialog):
         name = self.protocols_list.selected()
         if name is None:
             return
+
+        msgbox = QMessageBox(QMessageBox.Question, 'Confirmación de eliminación',
+                             'Está a punto de eliminar un prtocolo. Esta acción no puede deshacerse.', parent=self)
+        msgbox.setInformativeText("¿Desea eliminar el protocolo?")
+        save = QPushButton('Eliminar')
+        msgbox.addButton(save, QMessageBox.AcceptRole)
+        msgbox.addButton(QPushButton('Cancelar'), QMessageBox.RejectRole)
+        msgbox.setDefaultButton(save)
+        msgbox.setParent(self)
+
+        if msgbox.exec_() == QMessageBox.RejectRole:
+            return
+
         ind = ProtocolsDBIndex()
         ind.remove_protocol(name)
         self.protocols_list.update_list()
 
     def clone_protocol(self):
-        QMessageBox.warning(None, "not implemented", 'not implemented')
-        pass
+        name = self.protocols_list.selected()
+        if name is None:
+            return
+        ind = ProtocolsDBIndex()
+        protocol = ind.get_protocol(name)
+        cpw = CreateProtocolWidget(self)
+        cpw.setWindowTitle('Clonar protocolo')
+        cpw.protocol_name.setText(protocol.name)
+        cpw.protocol_notes.setText(protocol.notes)
+        cpw.protocol_distance.setValue(protocol.distance)
+        for stimulus in protocol.stimuli:
+            cpw.stimuli_list.append(stimulus)
+            stimulus_widget = StimulusWidget(stimulus)
+            cpw.v_stimuli_layout.addWidget(stimulus_widget)
+            stimulus_widget.delete_stimulus.clicked.connect(cpw.delete_stimulus)
+            stimulus_widget.edit_stimulus.clicked.connect(cpw.edit_stimulus)
+
+        cpw.exec_()
+        self.protocols_list.update_list()
 
 
 class TestControllerDialog(QDialog):
