@@ -126,6 +126,9 @@ class ProtocolsDBIndex:
     def __contains__(self, item):
         return item in self.protocols_record
 
+    def __len__(self):
+        return len(self.protocols_record)
+
 
 class Record:
     def __init__(self, record_name: str='', protocol_name: str='', tests_names: list=None,

@@ -5,7 +5,7 @@ import random
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QBrush, QFileDialog, QSizePolicy, QIcon
+    QBrush, QFileDialog, QSizePolicy, QIcon, QTableWidget, QTableWidgetItem, QAbstractItemView
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime
 import artwork.icons as fa
 from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
@@ -415,25 +415,40 @@ class CreateProtocolWidget(QDialog):
             return False
 
 
-class ProtocolsListWidget(QListWidget):
+class ProtocolsListWidget(QTableWidget):
     def __init__(self, parent=None):
         super(ProtocolsListWidget, self).__init__(parent)
-        self.update_list()
+        self.load_list()
+
+    def load_list(self):
+        ind = ProtocolsDBIndex()
+        self.setRowCount(len(ind))
+        self.setColumnCount(2)
+        self.setHorizontalHeaderLabels(['Nombre', 'Notas'])
+        for i in range(len(ind)):
+            protocol = ind.get_protocol(i)
+            name = QTableWidgetItem(protocol.name)
+            name.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            notes = QTableWidgetItem(protocol.notes)
+            notes.setFlags(Qt.NoItemFlags)
+            self.setItem(i, 0, name)
+            self.setItem(i, 1, notes)
 
     def update_list(self):
         self.clear()
-        ind = ProtocolsDBIndex()
-        for p in ind:
-            notes = ind.get_protocol(p).notes
-            lwi = QListWidgetItem()
-            lwi.setText(p + "\t---\t" + notes)
-            self.addItem(lwi)
+        # ind = ProtocolsDBIndex()
+        # for p in ind:
+        #     notes = ind.get_protocol(p).notes
+        #     lwi = QListWidgetItem()
+        #     lwi.setText(p + "\t---\t" + notes)
+        #     self.addItem(lwi)
+        self.load_list()
 
     def selected(self) -> str:
         selected = self.selectedItems()
         if len(selected) == 0:
             QMessageBox.warning(self, "Error de selección",
-                                "Debe seleccionar un protocolo.")
+                                "Debe seleccionar al menos un protocolo.")
             return None
         name = selected[0].text().split('\t')[0]
         return name
@@ -448,7 +463,7 @@ class ProtocolsManagementDialog(QDialog):
         self.protocols_layout = QVBoxLayout()
         self.buttons_layout = QHBoxLayout()
 
-        self.label = QLabel('Protocolos\t\t\tNotas')
+        self.label = QLabel('Protocolos')
 
         self.protocols_list = ProtocolsListWidget()
         self.protocols_layout.addWidget(self.protocols_list)
@@ -536,7 +551,7 @@ class TestControllerDialog(QDialog):
         self.main_layout = QVBoxLayout()
         self.buttons_layout = QHBoxLayout()
 
-        self.label = QLabel('Protocolos\t\t\tNotas')
+        self.label = QLabel('Protocolos')
         self.protocols_list = ProtocolsListWidget()
 
         self.start_test_button = QPushButton('')
