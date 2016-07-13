@@ -1,18 +1,57 @@
 from os.path import dirname, join
 from math import tan, atan, degrees, atan2, radians
 import random
+from datetime import date, datetime
 
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QBrush, QFileDialog, QSizePolicy, QIcon, QTableWidget, QTableWidgetItem, QAbstractItemView
+    QBrush, QFileDialog, QSizePolicy, QIcon, QTableWidget, QTableWidgetItem, QWizard, QWizardPage, QDateEdit
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime
 import artwork.icons as fa
 from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
 from core import user_settings
 from visualization import SignalsRenderer
 from adquisition import Adquirer, SerialHelper
-from storage import Record, Test, RecordsDBIndex, ProtocolsDBIndex
+from storage import RecordsDBIndex, ProtocolsDBIndex, Subject, Storager
+
+
+class SubjectParametersWidget(QWidget):
+    def __init__(self, parent):
+        super(SubjectParametersWidget, self).__init__(parent)
+
+        self.first_name = QLineEdit()
+        self.last_name = QLineEdit()
+        self.gender = QComboBox()
+        self.gender.addItems(['Desconocido', 'Masculino', 'Femenino'])
+        self.status = QComboBox()
+        self.status.addItems(['Desconocido', 'Control', 'Presintomático', 'Enfermo'])
+        self.molecular_diagnose = QLineEdit()
+        self.clinical_diagnose = QLineEdit()
+        self.handedness = QComboBox()
+        self.handedness.addItems(['Desconocido', 'Derecho', 'Zurdo', 'Ambidiestro'])
+        self.family = QLineEdit()
+        self.generation = QLineEdit()
+        self.register_date = QDateEdit()
+        self.register_date.setDate(date.today())
+        self.born_date = QDateEdit()
+        self.comments = QTextEdit()
+
+        form_layout = QFormLayout()
+        form_layout.addRow('Nombre', self.first_name)
+        form_layout.addRow('Apellidos', self.last_name)
+        form_layout.addRow('Género', self.gender)
+        form_layout.addRow('Estado', self.status)
+        form_layout.addRow('Diagnóstico molecular', self.molecular_diagnose)
+        form_layout.addRow('Diagnóstico clínico', self.clinical_diagnose)
+        form_layout.addRow('Mano dominante', self.handedness)
+        form_layout.addRow('Familia', self.family)
+        form_layout.addRow('Generación', self.generation)
+        form_layout.addRow('Fecha de registro', self.register_date)
+        form_layout.addRow('Fecha de nacimiento', self.born_date)
+        form_layout.addRow('Comentarios', self.comments)
+
+        self.setLayout(form_layout)
 
 
 class GenericParametersWidget(QWidget):
@@ -418,6 +457,7 @@ class CreateProtocolWidget(QDialog):
 class ProtocolsListWidget(QTableWidget):
     def __init__(self, parent=None):
         super(ProtocolsListWidget, self).__init__(parent)
+        self.setSelectionMode(QTableWidget.SingleSelection)
         self.load_list()
 
     def load_list(self):
@@ -450,7 +490,7 @@ class ProtocolsListWidget(QTableWidget):
             QMessageBox.warning(self, "Error de selección",
                                 "Debe seleccionar al menos un protocolo.")
             return None
-        name = selected[0].text().split('\t')[0]
+        name = selected[0].text()[0]
         return name
 
 
@@ -543,42 +583,6 @@ class ProtocolsManagementDialog(QDialog):
         self.protocols_list.update_list()
 
 
-class TestControllerDialog(QDialog):
-    def __init__(self, parent=None):
-        super(TestControllerDialog, self).__init__(parent)
-        self.setWindowTitle('Test Controller')
-
-        self.main_layout = QVBoxLayout()
-        self.buttons_layout = QHBoxLayout()
-
-        self.label = QLabel('Protocolos')
-        self.protocols_list = ProtocolsListWidget()
-
-        self.start_test_button = QPushButton('')
-        self.start_test_button.setIcon(QIcon(join('icons', 'start.svg')))
-        # self.start_test_button.setIconSize(QSize(20, 20))
-        self.start_test_button.setToolTip('Comenzar a registrar una prueba')
-        self.start_test_button.clicked.connect(self.start_test)
-
-        self.buttons_layout.addWidget(self.start_test_button)
-        self.main_layout.addWidget(self.label)
-        self.main_layout.addWidget(self.protocols_list)
-        self.main_layout.addLayout(self.buttons_layout)
-        self.setLayout(self.main_layout)
-
-        self.stimulator = None
-
-    def start_test(self):
-        name = self.protocols_list.selected()
-        if name is None:
-            return
-        ind = ProtocolsDBIndex()
-        protocol = ind.get_protocol(name)
-
-        self.stimulator = StimulatorWidget(protocol)
-        self.stimulator.show_stimulator()
-
-
 class RepaintThread(QThread):
     paintStimulus = pyqtSignal()
     stopStimulus = pyqtSignal()
@@ -609,6 +613,11 @@ class RepaintThread(QThread):
 
 
 class StimulatorWidget(QWidget):
+    stimulus_begin = pyqtSignal()
+    read_stimulus = pyqtSignal(list)
+    stimulus_end = pyqtSignal()
+    record_end = pyqtSignal()
+
     def __init__(self, protocol: Protocol, parent=None):
         super(StimulatorWidget, self).__init__(parent)
         self.screen = QDesktopWidget().screenGeometry(1)
@@ -711,6 +720,7 @@ class StimulatorWidget(QWidget):
             QMessageBox.warning(self, "Múltiples pantallas requeridas",
                                 "Para ejecutar esta funcionalidad se necesita otro monitor. " +
                                 "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
+            self.thread.quit()
         else:
             self.showFullScreen()
 
@@ -833,6 +843,198 @@ class SettingsDialog(QDialog):
         self.pages_widget.addWidget(widget)
 
 
+class IntroductionPage(QWizardPage):
+    def __init__(self, parent: QWidget = None):
+        super(IntroductionPage, self).__init__(parent)
+
+        self.setTitle('Introducción')
+        self.setSubTitle('Bienvenidos al asistente para grabar un registro. Este ayudante le guiará'
+                         ' a través del proceso de introducción de los datos necesarios para comenzar.')
+
+
+class RecordPage(QWizardPage):
+    def __init__(self,  parent=None):
+        super(RecordPage, self).__init__(parent)
+
+        self.setTitle('Datos del registro')
+
+        self.record_name = QLineEdit()
+        form_layout = QFormLayout()
+        form_layout.addRow('Nombre del registro', self.record_name)
+        self.setLayout(form_layout)
+
+    def validatePage(self):
+        name = self.record_name.text()
+        if name == '' or name.isspace():
+            QMessageBox.critical(self,
+                                 'Datos del registro',
+                                 'Debe introducir un nombre válido para la prueba:\n'
+                                 'solo caracteres alfanuméricos.')
+            return False
+
+        for s in name.split(' '):
+            if not s == '' and not s.isalnum():
+                QMessageBox.critical(self,
+                                     'Datos del registro',
+                                     'Debe introducir un nombre válido para la prueba.')
+                return False
+
+        ind = RecordsDBIndex()
+        if name in ind:
+            QMessageBox.critical(self,
+                                 'Datos del registro',
+                                 'Ya existe un registro con ese nombre.')
+            return False
+
+        return True
+
+
+class SetSubjectPage(QWizardPage):
+    def __init__(self, parent=None):
+        super(SetSubjectPage, self).__init__(parent)
+
+        self.setTitle('Datos del sujeto')
+        self.subject_parameters = SubjectParametersWidget(self)
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.subject_parameters)
+        self.setLayout(main_layout)
+
+    def validatePage(self):
+        if len(self.subject_parameters.first_name.text()) == 0:
+            QMessageBox.critical(self,
+                                 'Datos del sujeto',
+                                 'Debe introducir un nombre válido para el sujeto')
+            return False
+        return True
+
+
+class SelectProtocolPage(QWizardPage):
+    def __init__(self, parent=None):
+        super(SelectProtocolPage, self).__init__(parent)
+
+        self.setTitle('Selección de protocolo')
+
+        self.protocols_list = ProtocolsListWidget()
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.protocols_list)
+        self.setLayout(main_layout)
+
+    def validatePage(self):
+        if self.protocols_list.selected() is None:
+            return False
+        return True
+
+
+class ConfirmationPage(QWizardPage):
+    def __init__(self, parent=None):
+        super(ConfirmationPage, self).__init__(parent)
+
+        self.setTitle('Listo para comenzar')
+        self.setSubTitle('Los datos han sido introducidos correctamente. Pulse \"Comenzar\" para empezar a '
+                         'grabar el registro.')
+
+
+class StartRecordWizard(QWizard):
+    _introduction_page = None
+    _record_page = None
+    _subject_page = None
+    _protocol_page = None
+    _confirmation_page = None
+    _output_file_label = None
+    _subject = None
+
+    def __init__(self, parent: QWidget=None):
+        super(StartRecordWizard, self).__init__(parent)
+
+        self.setButtonText(QWizard.BackButton, 'Anterior')
+        self.setButtonText(QWizard.NextButton, 'Siguiente')
+        self.setButtonText(QWizard.FinishButton, 'Comenzar')
+
+        self._introduction_page = IntroductionPage()
+        self._record_page = RecordPage()
+        self._subject_page = SetSubjectPage()
+        self._protocol_page = SelectProtocolPage()
+        self._confirmation_page = ConfirmationPage()
+
+        self.addPage(self._introduction_page)
+        self.addPage(self._record_page)
+        self.addPage(self._subject_page)
+        self.addPage(self._protocol_page)
+        self.addPage(self._confirmation_page)
+
+        self.button(QWizard.FinishButton).pressed.connect(self.start_record)
+
+    def start_record(self):
+        self.make_subject()
+
+    def make_subject(self):
+        info = dict()
+        info['first_name'] = self._subject_page.subject_parameters.first_name.text()
+        info['last_name'] = self._subject_page.subject_parameters.last_name.text()
+        info['code'] = -1
+        info['gender'] = self._subject_page.subject_parameters.gender.currentIndex()
+        info['status'] = self._subject_page.subject_parameters.status.currentIndex()
+        info['molecular_diagnose'] = self._subject_page.subject_parameters.molecular_diagnose.text()
+        info['clinical_diagnose'] = self._subject_page.subject_parameters.clinical_diagnose.text()
+        info['handedness'] = self._subject_page.subject_parameters.handedness.currentIndex()
+        info['family'] = self._subject_page.subject_parameters.family.text()
+        info['generation'] = self._subject_page.subject_parameters.generation.text()
+        rd = self._subject_page.subject_parameters.register_date.date()
+        reg_date = datetime(rd.year(), rd.month(), rd.day())
+        info['register_date'] = reg_date.toordinal()
+        bd = self._subject_page.subject_parameters.born_date.date()
+        born_date = datetime(bd.year(), bd.month(), bd.day())
+        info['born_date'] = born_date.toordinal()
+        info['comments'] = self._subject_page.subject_parameters.comments.toPlainText()
+        self._subject = Subject(info=info)
+
+    @property
+    def record_name(self) -> str:
+        return self._record_page.record_name.text()
+
+    @property
+    def subject(self) -> Subject:
+        return self._subject
+
+    @property
+    def protocol_name(self) -> str:
+        return self._protocol_page.protocols_list.selected()
+
+
+class Controller:
+    storager = None
+    stimulator = None
+    adquirer = None
+    stop_record = pyqtSignal()
+
+    def __init__(self, record_name, protocol_name, subject):
+        self.storager = Storager(record_name, protocol_name, subject)
+
+        ind = ProtocolsDBIndex()
+        self.protocol = ind.get_protocol(protocol_name)
+
+    def start_test(self):
+        self.storager.start()
+        self.adquirer.start()
+
+        self.stimulator = StimulatorWidget(self.protocol)
+
+        self.stimulator.stimulus_end.connect(self.storager.on_stimulus_end)
+        self.stimulator.read_stimulus.connect(self.storager.receive_from_stimulator)
+        self.stimulator.record_end.connect(self.storager.on_record_end)
+        self.stimulator.record_end.connect(self.on_record_end)
+
+        self.stimulator.show_stimulator()
+
+    def create_adquirer(self, timelimit: int):
+        serial_port = user_settings.value('serial_port', '')
+        self.adquirer = Adquirer(port=serial_port, timelimit=timelimit)
+        self.adquirer.read_data.connect(self.storager.receive_from_adquirer)
+
+    def on_record_end(self):
+        self.stop_record.emit()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
@@ -852,14 +1054,13 @@ class MainWindow(QMainWindow):
         self.settings_action.triggered.connect(self.settings_dialog.exec)
         self.tool_bar.addAction(self.settings_action)
 
-        self.test_controller = TestControllerDialog(self)
-        self.test_controller_action = QAction(QIcon(join('icons', 'start.svg')), 'Test controller', self.tool_bar)
-        self.test_controller_action.triggered.connect(self.test_controller.exec)
-        self.tool_bar.addAction(self.test_controller_action)
+        self.start_record_wizard_action = QAction(QIcon(join('icons', 'start.svg')),
+                                                  'Asistente para comenzar a grabar un registro', self.tool_bar)
+        self.start_record_wizard_action.triggered.connect(self.start_record_wizard)
+        self.tool_bar.addAction(self.start_record_wizard_action)
 
         self.addToolBar(self.tool_bar)
 
-        serial_port = user_settings.value('serial_port', '')
         visualization_time_limit = user_settings.value('signals_renderer_time_limit', 10)
 
         self.central_widget = QWidget()
@@ -890,12 +1091,10 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.central_widget)
 
-        self.adquirer = Adquirer(port=serial_port, timelimit=115)
-        self.adquirer.read_data.connect(self.signals_renderer.addSamples)
-        self.adquirer.start()
+        self.controller = None
 
-    def closeEvent(self, *args, **kwargs):
-        self.adquirer.stop()
+    # def closeEvent(self, *args, **kwargs):
+    #     self.adquirer.stop()
 
     def renderer_time_decrease(self):
         if self.signals_renderer.timeLimit > 5:
@@ -903,3 +1102,15 @@ class MainWindow(QMainWindow):
 
     def renderer_time_increase(self):
         self.signals_renderer.timeLimit += 5
+
+    def start_record_wizard(self):
+        srw = StartRecordWizard(self)
+        if srw.exec() == QWizard.Accepted:
+            self.controller = Controller(srw.record_name, srw.protocol_name, srw.subject)
+            self.controller.adquirer.read_data.connect(self.signals_renderer.addSamples)
+            self.controller.adquirer.read_data.connect(self.controller.storager.receive_from_adquirer)
+            self.controller.start_test()
+            self.controller.stop_record.connect(self.stop_record)
+
+    def stop_record(self):
+        self.controller = None
