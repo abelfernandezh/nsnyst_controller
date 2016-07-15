@@ -23,7 +23,7 @@ class Test:
         self.test_type = test_type
         self.oid = oid
         if channels is None:
-            self.channels = {}
+            self.channels = dict()
         else:
             self.channels = channels
 
@@ -31,6 +31,7 @@ class Test:
         if type(key) is str:
             if key == Test.HORIZONTAL_CHANNEL or key == Test.VERTICAL_CHANNEL or key == Test.STIMULUS_CHANNEL:
                 if isinstance(value, list):
+                    print('asign', key, value)
                     self.channels[key] = array(value, int16)
                 elif isinstance(value, ndarray):
                     self.channels[key] = value
@@ -138,7 +139,7 @@ class Subject(object):
         if 'updated' in info.keys():
             info['updated'] = self.updated.toordinal()
         else:
-            info['updated'] = datetime.now()
+            info['updated'] = datetime.now().toordinal()
         return info
 
     def load(self, info: dict):
@@ -186,7 +187,7 @@ class ProtocolsDBIndex:
         elif type(key) is str and key in self.protocols_record:
             filename = key
         else:
-            raise KeyError('No se encuentra el protocolo especificado.')
+            raise KeyError('No se encuentra el protocolo especificado. key = (' + str(key) + ')')
         path = user_settings.value('workspace_path', dirname(__file__))
         with open(join(path, 'ProtocolsDB', filename + '.json'), 'r') as ifile:
             info = json.load(ifile)
@@ -294,15 +295,17 @@ class Record:
 
     def set_subject(self, subject: Subject):
         path = self.get_path
-        filename = join(path, 'RecordsDB', 'Registro-' + self.record_name + '_Protocolo-' + self.protocol_name,
-                        'subject.data')
+        filename = join(path, 'RecordsDB', 'Registro-' + self.record_name + '_Protocolo-' + self.protocol_name)
+        makedirs(filename, exist_ok=True)
+
+        filename = join(filename, 'subject.json')
         with open(filename, 'w') as ofile:
             json.dump(subject.information, ofile, indent=4)
 
     def get_subject(self) -> Subject:
         path = self.get_path
         filename = join(path, 'RecordsDB', 'Registro-' + self.record_name + '_Protocolo-' + self.protocol_name,
-                        'subject.data')
+                        'subject.json')
         with open(filename, 'r') as ifile:
             info = json.load(ifile)
         return Subject(info=info)
@@ -436,18 +439,15 @@ class Storager(QThread):
         self.record_date = record_date
         ind = ProtocolsDBIndex()
         self.protocol = ind.get_protocol(protocol_name)
-        # self.subject = subject
+        self.subject = subject
         self.record = Record(record_name, protocol_name, record_date=record_date)
-        self.record.set_subject(subject)
 
-    def receive_from_adquirer(self, block):
+    def receive_data(self, block):
+        # print('receive data storager called')
         for i in range(len(block)):
             self.horizontal_channel.append(block[i][0])
             self.vertical_channel.append(block[i][1])
-
-    def receive_from_stimulator(self, block):
-        for i in block:
-            self.horizontal_channel.append(i)
+            self.stimulus_channel.append(block[i][2])
 
     def on_stimulus_end(self):
         test_index = len(self.record)
@@ -455,17 +455,19 @@ class Storager(QThread):
             test_type = StimulusType.Saccadic
         else:
             test_type = StimulusType.Pursuit
-        test_channel = self.protocol.stimuli[test_index].channel
-        test = Test(test_type, test_channel)
+        test = Test(test_type)
         test[Test.HORIZONTAL_CHANNEL] = self.horizontal_channel
         test[Test.VERTICAL_CHANNEL] = self.vertical_channel
+        test[Test.STIMULUS_CHANNEL] = self.stimulus_channel
         self.horizontal_channel = []
         self.vertical_channel = []
+        self.stimulus_channel = []
         self.record.add_test(test)
 
     def on_record_end(self):
         if len(self.record) == 0:
             return
+        self.record.set_subject(self.subject)
         ind = RecordsDBIndex()
         ind.add_record(self.record)
         self.quit()

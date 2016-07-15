@@ -2,12 +2,14 @@ from os.path import dirname, join
 from math import tan, atan, degrees, atan2, radians
 import random
 from datetime import date, datetime
+from numpy import zeros, int16, ndarray
+from pprint import pprint
 
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
     QBrush, QFileDialog, QSizePolicy, QIcon, QTableWidget, QTableWidgetItem, QWizard, QWizardPage, QDateEdit
-from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime
+from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime, QObject
 import artwork.icons as fa
 from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
 from core import user_settings
@@ -490,7 +492,7 @@ class ProtocolsListWidget(QTableWidget):
             QMessageBox.warning(self, "Error de selección",
                                 "Debe seleccionar al menos un protocolo.")
             return None
-        name = selected[0].text()[0]
+        name = selected[0].text()
         return name
 
 
@@ -586,21 +588,19 @@ class ProtocolsManagementDialog(QDialog):
 class RepaintThread(QThread):
     paintStimulus = pyqtSignal()
     stopStimulus = pyqtSignal()
+    FRECUENCY = 1000 / 20
 
     def __init__(self, stimulus):
-        QThread.__init__(self)
+        super(RepaintThread, self).__init__()
         self.stimulus = stimulus
+        self.time = QTime()
 
     def run(self):
-        # time = QTime()
-        # time.start()
-        while self.stimulus.duration > 0:
+        self.time.start()
+        while self.stimulus.duration > self.time.elapsed():
             self.paintStimulus.emit()
-            delay = self.get_delay()
-            # print("Time elapsed: %d ms" % time.elapsed())
-            self.msleep(delay)
-            # time.restart()
-            self.stimulus.duration -= delay
+            self.msleep(self.get_delay())
+        print('stimulator ends on ', str(self.time.elapsed() / 1000), ' seconds.')
         self.stopStimulus.emit()
 
     def get_delay(self):
@@ -608,15 +608,31 @@ class RepaintThread(QThread):
             real_duration = self.stimulus.fixation_duration + (random.randrange(
                 self.stimulus.variation * 2)) - self.stimulus.variation
             return real_duration
+        elif type(self.stimulus) == PursuitStimulus:
+            return 1000 / self.FRECUENCY
         else:
-            return 8
+            raise ValueError('El estímulo no es de un tipo válido')
+
+
+class StimulusAdquirerThread(QThread):
+    set_block = pyqtSignal()
+
+    def __init__(self):
+        super(StimulusAdquirerThread, self).__init__()
+
+    def run(self):
+        while True:
+            # print('StimulusAdquirerThread.run called')
+            self.set_block.emit()
+            self.msleep(1)
 
 
 class StimulatorWidget(QWidget):
-    stimulus_begin = pyqtSignal()
+    stimulus_begin = pyqtSignal(int)
     read_stimulus = pyqtSignal(list)
     stimulus_end = pyqtSignal()
     record_end = pyqtSignal()
+    _block = None
 
     def __init__(self, protocol: Protocol, parent=None):
         super(StimulatorWidget, self).__init__(parent)
@@ -633,38 +649,59 @@ class StimulatorWidget(QWidget):
 
         self.stimulus = None
         self.sac_shift_factor = 1
-        self.time_since_start = 0
+        self.timer = QTime()
         self.semi_length = 0
         self.thread = None
+        self.stimulus_adquirer_thread = None
         self.should_paint = True
         self.previous_point = [0, 0]
         self.current_point = []
 
-        sti = protocol.stimuli[0]
-        self.stop_paint()
+        self._block = zeros(20, dtype=int16)
+        self.block_size = 0
 
-    def get_shift(self):
+    def get_shift(self, to_show=True):
         if type(self.stimulus) == SaccadicStimulus:
-            self.sac_shift_factor *= -1
+            if to_show:
+                self.sac_shift_factor *= -1
             diff_sac = tan(radians(self.stimulus.amplitude)) * self.distance
             return diff_sac * self.sac_shift_factor
         else:
             time_for_round = self.stimulus.amplitude / (self.stimulus.velocity / 1000)
-            # alpha = (self.current_stimulus.velocity / 1000) * (self.time_since_start % time_for_round)
-            # if int(self.time_since_start / time_for_round) % 2 == 1:
+            # alpha = (self.current_stimulus.velocity / 1000) * (self.timer.elapsed() % time_for_round)
+            # if int(self.timer.elapsed() / time_for_round) % 2 == 1:
             #     alpha = self.current_stimulus.amplitude - alpha
             # print(alpha)
             # diff = -self.distance * tan(radians(self.current_stimulus.amplitude / 2 - alpha))
             pixels = 2 * self.semi_length / self.pixel_size
             pixels_per_ms = pixels / time_for_round
-            t = self.time_since_start % time_for_round
+            t = self.timer.elapsed() % time_for_round
             diff = pixels_per_ms * t
-            if int(self.time_since_start / time_for_round) % 2 == 1:
+            if int(self.timer.elapsed() / time_for_round) % 2 == 1:
                 diff -= pixels / 2
             else:
                 diff = pixels / 2 - diff
-            self.time_since_start += 8
+            # self.time_since_start += 8
             return diff
+
+    def get_block(self):
+        # print('***stimulator.get_block called')
+        block = self._block.copy()
+        if self.block_size >= 20:
+            print('----', self.block_size)
+        self.block_size = 0
+        self._block.fill(0)
+        return block
+
+    def _set_block(self):
+        # print('stimulator._set_block called and failed')
+        x = self.screen.width() / 2 - 15 + self.get_shift()
+        if self.block_size >= 20:
+            # print('----', self.block_size)
+            self.block_size += 1
+            return
+        self._block[self.block_size] = x
+        self.block_size += 1
 
     def paintEvent(self, event):
         qp = QPainter(self)
@@ -687,6 +724,11 @@ class StimulatorWidget(QWidget):
         # self.update(self.current_point[0] - 15, self.current_point[1], 60, 32)
 
     def stop_paint(self):
+        self.stimulus_adquirer_thread.terminate()
+        self.stimulus_end.emit()
+        # if self.stimulus_adquirer_thread is not None:
+
+        print('stimulus_adquirer_thread.terminate() called')
         self.should_paint = False
         self.update()
         if len(self.protocol.stimuli) > 0:
@@ -697,17 +739,25 @@ class StimulatorWidget(QWidget):
             self.protocol.stimuli.remove(stimulus)
             self.paint_stimulus(stimulus)
         else:
+            self.record_end.emit()
             self.close()
+            QMessageBox.information(None, "Aviso",
+                                    "Fin de la prueba")
 
     def paint_stimulus(self, stimulus: Stimulus):
         self.stimulus = stimulus
         self.stimulus.duration *= 1000
         self.sac_shift_factor = 1
-        self.time_since_start = 0
+        self.timer.restart()
         self.semi_length = tan(radians(self.stimulus.amplitude / 2)) * self.distance / 2
 
         self.thread = RepaintThread(self.stimulus)
+        self.stimulus_adquirer_thread = StimulusAdquirerThread()
+        self.stimulus_adquirer_thread.set_block.connect(self._set_block)
+        self.stimulus_begin.emit(self.stimulus.duration / 1000)
+        print('stimulus_begin signal emitted')
         self.thread.start()
+        self.stimulus_adquirer_thread.start()
         self.thread.paintStimulus.connect(self.show_paint)
         self.thread.stopStimulus.connect(self.stop_paint)
         self.should_paint = True
@@ -716,13 +766,20 @@ class StimulatorWidget(QWidget):
         self.current_point = [self.screen.width() / 2 - 15 + self.get_shift(), self.screen.height() / 2]
 
     def show_stimulator(self):
-        if QDesktopWidget().numScreens() is 1:
-            QMessageBox.warning(self, "Múltiples pantallas requeridas",
-                                "Para ejecutar esta funcionalidad se necesita otro monitor. " +
-                                "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
-            self.thread.quit()
-        else:
-            self.showFullScreen()
+        # if QDesktopWidget().numScreens() is 1:
+        #     QMessageBox.warning(self, "Múltiples pantallas requeridas",
+        #                         "Para ejecutar esta funcionalidad se necesita otro monitor. " +
+        #                         "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
+        #     self.thread.quit()
+        # else:
+        if len(self.protocol.stimuli) > 0:
+            # show dialog, delay
+            QMessageBox.information(None, "Aviso",
+                                    "Comenzar prueba")
+            stimulus = self.protocol.stimuli[0]
+            self.protocol.stimuli.remove(stimulus)
+            self.paint_stimulus(stimulus)
+        self.showFullScreen()
 
 
 class WorkspaceSettingsWidget(QWidget):
@@ -1001,38 +1058,65 @@ class StartRecordWizard(QWizard):
         return self._protocol_page.protocols_list.selected()
 
 
-class Controller:
+class Controller(QObject):
     storager = None
     stimulator = None
     adquirer = None
     stop_record = pyqtSignal()
+    new_adquirer_created = pyqtSignal()
+    read_all_data = pyqtSignal(ndarray)
 
     def __init__(self, record_name, protocol_name, subject):
+        super(Controller, self).__init__()
         self.storager = Storager(record_name, protocol_name, subject)
+        self.read_all_data.connect(self.storager.receive_data)
 
         ind = ProtocolsDBIndex()
         self.protocol = ind.get_protocol(protocol_name)
 
     def start_test(self):
         self.storager.start()
-        self.adquirer.start()
 
         self.stimulator = StimulatorWidget(self.protocol)
 
+        self.stimulator.stimulus_begin.connect(self.start_adquirer)
         self.stimulator.stimulus_end.connect(self.storager.on_stimulus_end)
-        self.stimulator.read_stimulus.connect(self.storager.receive_from_stimulator)
-        self.stimulator.record_end.connect(self.storager.on_record_end)
+        self.stimulator.stimulus_end.connect(self.on_stimulus_end)
+        # self.stimulator.record_end.connect(self.storager.on_record_end)
         self.stimulator.record_end.connect(self.on_record_end)
 
         self.stimulator.show_stimulator()
 
-    def create_adquirer(self, timelimit: int):
+    def start_adquirer(self, timelimit: int):
+        print('Controller.start_adquirer called. timelimit =', timelimit)
         serial_port = user_settings.value('serial_port', '')
         self.adquirer = Adquirer(port=serial_port, timelimit=timelimit)
-        self.adquirer.read_data.connect(self.storager.receive_from_adquirer)
+        self.new_adquirer_created.emit()
+        self.adquirer.read_data.connect(self.get_all_data)
+        self.adquirer.start()
+
+    def get_all_data(self, block) -> ndarray:
+        print('Controller.get_all_data called')
+        data = zeros([20, 3], dtype=int16)
+        stimulus_block = self.stimulator.get_block()
+        # print('stimulus_block =', stimulus_block)
+
+        for i in range(20):
+            data[i][0] = block[i][0]
+            data[i][1] = block[i][1]
+            data[i][2] = stimulus_block[i]
+
+        self.read_all_data.emit(data)
 
     def on_record_end(self):
         self.stop_record.emit()
+        self.storager.on_record_end()
+        self.storager.quit()
+
+    def on_stimulus_end(self):
+        print('adquirer should ends on ', self.adquirer.countlimit*0.02, ' seconds')
+        self.adquirer.stop()
+        # self.adquirer = None
 
 
 class MainWindow(QMainWindow):
@@ -1087,6 +1171,10 @@ class MainWindow(QMainWindow):
         self.button_list_layout.addWidget(self.renderer_time_decrease_button)
         self.button_list_layout.addWidget(self.renderer_time_increase_button)
 
+        # self.adquirer = Adquirer('COM1', timelimit=40)
+        # self.adquirer.read_data.connect(self.signals_renderer.addSamples)
+        # self.adquirer.start()
+
         self.central_widget_layout.addWidget(self.button_list_widget)
 
         self.setCentralWidget(self.central_widget)
@@ -1107,10 +1195,21 @@ class MainWindow(QMainWindow):
         srw = StartRecordWizard(self)
         if srw.exec() == QWizard.Accepted:
             self.controller = Controller(srw.record_name, srw.protocol_name, srw.subject)
-            self.controller.adquirer.read_data.connect(self.signals_renderer.addSamples)
-            self.controller.adquirer.read_data.connect(self.controller.storager.receive_from_adquirer)
+            # self.controller.read_all_data.connect(self.signals_renderer.addSamples)
+            self.controller.new_adquirer_created.connect(self.new_adquirer)
             self.controller.start_test()
             self.controller.stop_record.connect(self.stop_record)
 
     def stop_record(self):
         self.controller = None
+        # ind = RecordsDBIndex()
+        # rec = ind.get_record(2)
+        # for i in range(len(rec.tests_names)):
+        #     t = rec.get_test(0)
+        #     pprint(t.test_type.name)
+        #     for k in t.channels.keys():
+        #         print(k, t.channels[k])
+
+    def new_adquirer(self):
+        # self.controller.adquirer.read_data.connect(self.signals_renderer.addSamples)
+        self.controller.read_all_data.connect(self.signals_renderer.addSamples)
