@@ -31,7 +31,6 @@ class Test:
         if type(key) is str:
             if key == Test.HORIZONTAL_CHANNEL or key == Test.VERTICAL_CHANNEL or key == Test.STIMULUS_CHANNEL:
                 if isinstance(value, list):
-                    print('asign', key, value)
                     self.channels[key] = array(value, int16)
                 elif isinstance(value, ndarray):
                     self.channels[key] = value
@@ -443,7 +442,6 @@ class Storager(QThread):
         self.record = Record(record_name, protocol_name, record_date=record_date)
 
     def receive_data(self, block):
-        # print('receive data storager called')
         for i in range(len(block)):
             self.horizontal_channel.append(block[i][0])
             self.vertical_channel.append(block[i][1])
