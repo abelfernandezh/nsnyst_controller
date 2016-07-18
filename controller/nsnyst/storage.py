@@ -1,8 +1,9 @@
-from numpy import array, float64
-from datetime import date
+from numpy import array, int16, ndarray
+from datetime import date, datetime
 import json
 from os.path import dirname, join
 from os import makedirs, remove, rmdir
+from PyQt4.QtCore import QThread
 from core import user_settings
 import pickle
 from stimulation import StimulusType, Protocol, SaccadicStimulus, PursuitStimulus, Channel
@@ -22,14 +23,20 @@ class Test:
         self.test_type = test_type
         self.oid = oid
         if channels is None:
-            self.channels = {}
+            self.channels = dict()
         else:
             self.channels = channels
 
     def __setitem__(self, key, value):
         if type(key) is str:
             if key == Test.HORIZONTAL_CHANNEL or key == Test.VERTICAL_CHANNEL or key == Test.STIMULUS_CHANNEL:
-                self.channels[key] = array(value, float64)
+                if isinstance(value, list):
+                    print('asign', key, value)
+                    self.channels[key] = array(value, int16)
+                elif isinstance(value, ndarray):
+                    self.channels[key] = value
+                else:
+                    raise ValueError('El valor proporciondo no es válido')
             else:
                 raise KeyError('El canal especificado no es válido')
 
@@ -38,6 +45,121 @@ class Test:
             return self.channels[item]
         else:
             raise KeyError('La prueba no contiene el canal especificado')
+
+
+class Subject(object):
+    """ Sujeto
+
+    Encapsula todos los datos de un sujeto al que se le realizan estudios de movimientos oculares.
+    """
+
+    UNKNOWN_GENDER = 0
+    MALE_GENDER = 1
+    FEMALE_GENDER = 2
+
+    UNKNOWN_STATUS = 0
+    CONTROL = 1
+    PRESINTOMATIC = 2
+    SICK = 3
+
+    UNKNOWN_HANDEDNESS = 0
+    RIGTH = 1
+    LEFT = 2
+    AMBIDEXTER = 3
+
+    code = 0000
+    parent = None
+    first_name = None
+    last_name = None
+    gender = None
+    status = None
+    molecular_diagnose = None
+    clinical_diagnose = None
+    handedness = 0
+    family = None
+    generation = None
+    register_date = None
+    born_date = None
+    comments = None
+    updated = None
+
+    def __init__(self, first_name: str = 'Unknown', last_name: str = 'Unknown',
+                 oid: int = -1, parent=None, gender: int = UNKNOWN_GENDER,
+                 status: int = UNKNOWN_STATUS, handedness: int = UNKNOWN_HANDEDNESS,
+                 register_date: datetime = datetime.now(), info: dict=None,
+                 **parameters):
+        """Constructor
+
+        :param oid:
+        :param parent:
+        :param first_name: Nombre del paciente
+        :param last_name: Apellidos del paciente
+        :param gender: Género del paciente
+        :param status: Estado del paciente
+        :param parameters: Parámetros adicionales del paciente
+        """
+        if info is not None:
+            self.load(info)
+            return
+        self.code = oid
+        self.parent = None
+        self.first_name = first_name
+        self.last_name = last_name
+        self.gender = gender
+        self.status = status
+        self.molecular_diagnose = None
+        self.clinical_diagnose = None
+        self.handedness = handedness
+        self.family = None
+        self.generation = None
+        self.register_date = register_date
+        self.born_date = None
+        self.comments = None
+        self.updated = datetime.now()
+
+    def __str__(self):
+        return self.first_name
+
+    @property
+    def information(self) -> OrderedDict:
+        info = OrderedDict()
+        info['first_name'] = self.first_name
+        info['last_name'] = self.last_name
+        info['code'] = self.code
+        info['gender'] = self.gender
+        info['status'] = self.status
+        info['molecular_diagnose'] = self.molecular_diagnose
+        info['clinical_diagnose'] = self.clinical_diagnose
+        info['handedness'] = self.handedness
+        info['family'] = self.family
+        info['generation'] = self.generation
+        info['register_date'] = self.register_date.toordinal()
+        info['born_date'] = self.born_date.toordinal()
+        info['comments'] = self.comments
+        if 'updated' in info.keys():
+            info['updated'] = self.updated.toordinal()
+        else:
+            info['updated'] = datetime.now().toordinal()
+        return info
+
+    def load(self, info: dict):
+        self.first_name = info['first_name']
+        self.last_name = info['last_name']
+        self.code = info['code']
+        self.gender = info['gender']
+        self.status = info['status']
+        self.molecular_diagnose = info['molecular_diagnose']
+        self.clinical_diagnose = info['clinical_diagnose']
+        self.handedness = info['handedness']
+        self.family = info['family']
+        self.generation = info['generation']
+        self.register_date = datetime.fromordinal(info['register_date'])
+        self.born_date = datetime.fromordinal(info['born_date'])
+        self.comments = info['comments']
+        if 'updated' in info.keys():
+            self.updated = datetime.fromordinal(info['updated'])
+        else:
+            self.updated = datetime.now()
 
 
 class ProtocolsDBIndex:
@@ -65,7 +187,7 @@ class ProtocolsDBIndex:
         elif type(key) is str and key in self.protocols_record:
             filename = key
         else:
-            raise KeyError('No se encuentra el protocolo especificado.')
+            raise KeyError('No se encuentra el protocolo especificado. key = (' + str(key) + ')')
         path = user_settings.value('workspace_path', dirname(__file__))
         with open(join(path, 'ProtocolsDB', filename + '.json'), 'r') as ifile:
             info = json.load(ifile)
@@ -123,6 +245,12 @@ class ProtocolsDBIndex:
     def __iter__(self):
         return self.protocols_record.__iter__()
 
+    def __contains__(self, item):
+        return item in self.protocols_record
+
+    def __len__(self):
+        return len(self.protocols_record)
+
 
 class Record:
     def __init__(self, record_name: str='', protocol_name: str='', tests_names: list=None,
@@ -165,6 +293,23 @@ class Record:
             test = pickle.load(ifile)
             return test
 
+    def set_subject(self, subject: Subject):
+        path = self.get_path
+        filename = join(path, 'RecordsDB', 'Registro-' + self.record_name + '_Protocolo-' + self.protocol_name)
+        makedirs(filename, exist_ok=True)
+
+        filename = join(filename, 'subject.json')
+        with open(filename, 'w') as ofile:
+            json.dump(subject.information, ofile, indent=4)
+
+    def get_subject(self) -> Subject:
+        path = self.get_path
+        filename = join(path, 'RecordsDB', 'Registro-' + self.record_name + '_Protocolo-' + self.protocol_name,
+                        'subject.json')
+        with open(filename, 'r') as ifile:
+            info = json.load(ifile)
+        return Subject(info=info)
+
     def add_test(self, test: Test):
         test_name = str(len(self.tests_names)) + '_' + test.test_type.name + 'Test'  # !!! stName
         path = self.get_path
@@ -200,6 +345,9 @@ class Record:
 
     def __iter__(self):
         return self.tests_names.__iter__()
+
+    def __len__(self):
+        return len(self.tests_names)
 
 
 class RecordsDBIndex:
@@ -271,3 +419,55 @@ class RecordsDBIndex:
 
     def __iter__(self):
         return self.records.__iter__()
+
+    def __contains__(self, item):
+        records_names = []
+        for r in self.records:
+            records_names.append(r.record_name)
+        return item in records_names
+
+
+class Storager(QThread):
+    stimulus_channel = []
+    horizontal_channel = []
+    vertical_channel = []
+
+    def __init__(self, record_name: str, protocol_name: str, subject: Subject, record_date: date=date.today()):
+        super(Storager, self).__init__()
+
+        self.record_name = record_name
+        self.record_date = record_date
+        ind = ProtocolsDBIndex()
+        self.protocol = ind.get_protocol(protocol_name)
+        self.subject = subject
+        self.record = Record(record_name, protocol_name, record_date=record_date)
+
+    def receive_data(self, block):
+        # print('receive data storager called')
+        for i in range(len(block)):
+            self.horizontal_channel.append(block[i][0])
+            self.vertical_channel.append(block[i][1])
+            self.stimulus_channel.append(block[i][2])
+
+    def on_stimulus_end(self):
+        test_index = len(self.record)
+        if type(self.protocol.stimuli[test_index]) == SaccadicStimulus:
+            test_type = StimulusType.Saccadic
+        else:
+            test_type = StimulusType.Pursuit
+        test = Test(test_type)
+        test[Test.HORIZONTAL_CHANNEL] = self.horizontal_channel
+        test[Test.VERTICAL_CHANNEL] = self.vertical_channel
+        test[Test.STIMULUS_CHANNEL] = self.stimulus_channel
+        self.horizontal_channel = []
+        self.vertical_channel = []
+        self.stimulus_channel = []
+        self.record.add_test(test)
+
+    def on_record_end(self):
+        if len(self.record) == 0:
+            return
+        self.record.set_subject(self.subject)
+        ind = RecordsDBIndex()
+        ind.add_record(self.record)
+        self.quit()

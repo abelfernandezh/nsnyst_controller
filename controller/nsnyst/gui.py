@@ -1,27 +1,59 @@
-from os.path import dirname
+from os.path import dirname, join
 from math import tan, atan, degrees, atan2, radians
 import random
+from datetime import date, datetime
+from numpy import zeros, int16, ndarray
+from pprint import pprint
 
 from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QLineEdit, QCheckBox, QSpinBox, QComboBox, \
     QStackedWidget, QWidget, QLabel, QPushButton, QHBoxLayout, QTextEdit, QVBoxLayout, QDesktopWidget, QMessageBox, \
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
-    QBrush, QFileDialog, QSizePolicy
-from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal
-    QBrush, QFileDialog, QIcon
-from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime
+    QBrush, QFileDialog, QSizePolicy, QIcon, QTableWidget, QTableWidgetItem, QWizard, QWizardPage, QDateEdit
+from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime, QObject
 import artwork.icons as fa
-from nsnyst.stimulation import Channel, SaccadicStimulus, Protocol
-from os.path import join
-
-from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType
-from nsnyst.core import user_settings
-from nsnyst.visualization import SignalsRenderer
-from nsnyst.adquisition import Adquirer, SerialHelper
-
-from PyQt4.QtCore import QTime
 from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
 from core import user_settings
-from storage import Record, Test, RecordsDBIndex, ProtocolsDBIndex
+from visualization import SignalsRenderer
+from adquisition import Adquirer, SerialHelper
+from storage import RecordsDBIndex, ProtocolsDBIndex, Subject, Storager
+
+
+class SubjectParametersWidget(QWidget):
+    def __init__(self, parent):
+        super(SubjectParametersWidget, self).__init__(parent)
+
+        self.first_name = QLineEdit()
+        self.last_name = QLineEdit()
+        self.gender = QComboBox()
+        self.gender.addItems(['Desconocido', 'Masculino', 'Femenino'])
+        self.status = QComboBox()
+        self.status.addItems(['Desconocido', 'Control', 'Presintomático', 'Enfermo'])
+        self.molecular_diagnose = QLineEdit()
+        self.clinical_diagnose = QLineEdit()
+        self.handedness = QComboBox()
+        self.handedness.addItems(['Desconocido', 'Derecho', 'Zurdo', 'Ambidiestro'])
+        self.family = QLineEdit()
+        self.generation = QLineEdit()
+        self.register_date = QDateEdit()
+        self.register_date.setDate(date.today())
+        self.born_date = QDateEdit()
+        self.comments = QTextEdit()
+
+        form_layout = QFormLayout()
+        form_layout.addRow('Nombre', self.first_name)
+        form_layout.addRow('Apellidos', self.last_name)
+        form_layout.addRow('Género', self.gender)
+        form_layout.addRow('Estado', self.status)
+        form_layout.addRow('Diagnóstico molecular', self.molecular_diagnose)
+        form_layout.addRow('Diagnóstico clínico', self.clinical_diagnose)
+        form_layout.addRow('Mano dominante', self.handedness)
+        form_layout.addRow('Familia', self.family)
+        form_layout.addRow('Generación', self.generation)
+        form_layout.addRow('Fecha de registro', self.register_date)
+        form_layout.addRow('Fecha de nacimiento', self.born_date)
+        form_layout.addRow('Comentarios', self.comments)
+
+        self.setLayout(form_layout)
 
 
 class GenericParametersWidget(QWidget):
@@ -33,14 +65,18 @@ class GenericParametersWidget(QWidget):
         self.type.addItem('Prueba de Persecución')
         self.f_layout.addRow('Tipo de Prueba', self.type)
         self.stimulus_name = QLineEdit()
+        self.stimulus_name.setPlaceholderText('Nombre del estímulo')
         self.f_layout.addRow('Nombre', self.stimulus_name)
         self.horizontal_channel = QCheckBox()
+        self.horizontal_channel.setChecked(True)
         self.f_layout.addRow('Canal Horizontal', self.horizontal_channel)
         self.vertical_channel = QCheckBox()
         self.f_layout.addRow('Canal Vertical', self.vertical_channel)
         self.stimulus_duration = QSpinBox()
         self.stimulus_duration.setRange(1, 500)
+        self.stimulus_duration.setValue(15)
         self.stimulus_duration.setMaximumWidth(100)
+        self.stimulus_duration.setSuffix(' s')
         self.f_layout.addRow('Duración', self.stimulus_duration)
 
         self.setLayout(self.f_layout)
@@ -69,8 +105,13 @@ class PursuitStimuliParametersWidget(QWidget):
         super(PursuitStimuliParametersWidget, self).__init__(parent)
         self.pursuit_amplitude = QSpinBox()
         self.pursuit_amplitude.setMaximumWidth(100)
+        self.pursuit_amplitude.setValue(45)
+        self.pursuit_amplitude.setSuffix(' º')
+
         self.pursuit_velocity = QSpinBox()
         self.pursuit_velocity.setMaximumWidth(100)
+        self.pursuit_velocity.setValue(30)
+        self.pursuit_velocity.setSuffix(' º/s')
 
         self.f_layout = QFormLayout()
         self.f_layout.addRow('Amplitud', self.pursuit_amplitude)
@@ -90,12 +131,19 @@ class SaccadicStimuliParametersWidget(QWidget):
     def __init__(self, parent=None):
         super(SaccadicStimuliParametersWidget, self).__init__(parent)
         self.fixation_duration = QSpinBox()
-        # self.fixation_duration.setMaximumWidth(600)
-        self.fixation_duration.setRange(1, 600)
+        self.fixation_duration.setRange(1, 2000)
+        self.fixation_duration.setValue(400)
+        self.fixation_duration.setSuffix(' ms')
+
         self.fixation_amplitude = QSpinBox()
-        self.fixation_amplitude.setMaximumWidth(100)
+        self.fixation_amplitude.setRange(1, 150)
+        self.fixation_amplitude.setValue(60)
+        self.fixation_amplitude.setSuffix(' º')
+
         self.fixation_variation = QSpinBox()
-        self.fixation_variation.setMaximumWidth(100)
+        self.fixation_variation.setRange(1, 1000)
+        self.fixation_variation.setValue(50)
+        self.fixation_variation.setSuffix(' ms')
 
         self.f_layout = QFormLayout()
         self.f_layout.addRow('Duración de la fijación', self.fixation_duration)
@@ -141,8 +189,8 @@ class CreateStimuliWidget(QDialog):
 
         self.button_box = QDialogButtonBox()
 
-        self.button_box.addButton('', QDialogButtonBox.AcceptRole).setIcon(fa.icon('fa.save'))
-        self.button_box.addButton('', QDialogButtonBox.RejectRole).setIcon(fa.icon('fa.remove'))
+        self.button_box.addButton('', QDialogButtonBox.AcceptRole).setIcon(QIcon(join('icons', 'save.svg')))
+        self.button_box.addButton('', QDialogButtonBox.RejectRole).setText('Cancelar')
 
         self.main_layout.addLayout(self.h_layout)
         self.main_layout.addWidget(self.button_box)
@@ -150,17 +198,16 @@ class CreateStimuliWidget(QDialog):
         self.setLayout(self.main_layout)
 
         self.generic.type.currentIndexChanged.connect(self.on_index_change)
-        self.button_box.accepted.connect(self.accept)
+        self.button_box.accepted.connect(self.save_button_pressed)
         self.button_box.rejected.connect(self.reject)
 
-    def accept(self):
-        super(CreateStimuliWidget, self).accept()
+    def save_button_pressed(self):
+        if not self.stimulus_is_valid():
+            return
 
         name = self.generic.name
         duration = self.generic.duration
         channel = self.generic.channels
-        if channel is None:
-            channel = Channel.Both_Channels
 
         if self.stimulus_type == StimulusType.Saccadic:
             f_amplitude = self.saccadic_features.amplitude
@@ -173,10 +220,35 @@ class CreateStimuliWidget(QDialog):
             stimulus_data = PursuitStimulus(name, duration, p_amplitude, velocity, channel)
 
         self.stimulus = stimulus_data
+        self.accept()
 
     def on_index_change(self):
         self.advanced_properties_stack.setCurrentIndex(self.generic.type.currentIndex())
         self.stimulus_type = StimulusType(self.generic.type.currentIndex())
+
+    def stimulus_is_valid(self) -> bool:
+        messages = []
+        if self.generic.name == '' or self.generic.name.isspace():
+            messages.append('No se ha especificado un nombre válido')
+        else:
+            for s in self.generic.name.split(' '):
+                if not s == '' and not s.isalnum():
+                    messages.append('No ha especificado un nombre válido')
+                    break
+        if self.generic.channels is None:
+            if len(messages) == 0:
+                messages.append('No ha seleccionado ningún canal')
+            else:
+                messages.append('ni ha seleccionado ningún canal')
+
+        if len(messages) == 0:
+            return True
+        else:
+            s = 'Falta información:'
+            for i in messages:
+                s += '\n\t' + i
+            QMessageBox.warning(self, "Datos insuficientes", s)
+            return False
 
 
 class StimulusWidget(QWidget):
@@ -232,20 +304,23 @@ class CreateProtocolWidget(QDialog):
         self.buttons_layout = QHBoxLayout()
 
         self.protocol_name = QLineEdit()
+        self.protocol_name.setPlaceholderText('Nombre del protocolo')
         self.protocol_notes = QTextEdit()
         self.protocol_notes.setMaximumHeight(50)
         self.protocol_distance = QSpinBox()
         self.protocol_distance.setRange(100, 5000)
+        self.protocol_distance.setMaximumWidth(100)
         self.protocol_distance.setValue(400)
+        self.protocol_distance.setSuffix(' mm')
 
         self.f_layout.addRow('Nombre', self.protocol_name)
         self.f_layout.addRow('Notas', self.protocol_notes)
         self.f_layout.addRow('Distancia', self.protocol_distance)
 
-        self.add_stimulus_button = QPushButton(fa.icon('fa.plus'), '')
+        self.add_stimulus_button = QPushButton(QIcon(join('icons', 'add.svg')), '')
         self.add_stimulus_button.clicked.connect(self.add_stimulus)
-        self.save_button = QPushButton(fa.icon('fa.save'), '')
-        self.save_button.clicked.connect(self.accepted)
+        self.save_button = QPushButton(QIcon(join('icons', 'save.svg')), '')
+        self.save_button.clicked.connect(self.save_button_pressed)
 
         self.buttons_layout.addWidget(self.save_button)
         self.buttons_layout.addWidget(self.add_stimulus_button)
@@ -268,7 +343,21 @@ class CreateProtocolWidget(QDialog):
     def distance(self):
         return self.protocol_distance.value()
 
-    def accepted(self):
+    def save_button_pressed(self):
+        if not self.protocol_is_valid():
+            return
+        msgbox = QMessageBox(QMessageBox.Question, 'Guardar protocolo', "Una vez guardado, el protocolo "
+                                                                        "no podrá ser modificado.", parent=self)
+        msgbox.setInformativeText("¿Desea guardar el protocolo?")
+        save = QPushButton('Guardar')
+        msgbox.addButton(save, QMessageBox.AcceptRole)
+        msgbox.addButton(QPushButton('Cancelar'), QMessageBox.RejectRole)
+        msgbox.setDefaultButton(save)
+        msgbox.setParent(self)
+
+        if msgbox.exec_() == QMessageBox.RejectRole:
+            return
+
         protocol = Protocol(self.name, self.notes, self.distance)
         protocol.stimuli = self.stimuli_list
         ind = ProtocolsDBIndex()
@@ -294,7 +383,7 @@ class CreateProtocolWidget(QDialog):
                 widget.marked_for_edition = False
                 break
 
-        edit_stimulus = CreateStimuliWidget()
+        edit_stimulus = CreateStimuliWidget(self)
         edit_stimulus.setWindowTitle('Editar estímulo')
         stimulus = self.stimuli_list[index]
         stimulus_type = 0
@@ -328,7 +417,7 @@ class CreateProtocolWidget(QDialog):
                 widget.stimulus_type.setText('Estímulo de Persecución')
 
     def add_stimulus(self):
-        create_stimulus = CreateStimuliWidget()
+        create_stimulus = CreateStimuliWidget(parent=self)
 
         if create_stimulus.exec() == QDialog.Accepted:
             self.stimuli_list.append(create_stimulus.stimulus)
@@ -337,108 +426,181 @@ class CreateProtocolWidget(QDialog):
             stimulus_widget.delete_stimulus.clicked.connect(self.delete_stimulus)
             stimulus_widget.edit_stimulus.clicked.connect(self.edit_stimulus)
 
+    def protocol_is_valid(self) -> bool:
+        messages = []
+        if self.name == '' or self.name.isspace():
+            messages.append('No se ha especificado un nombre válido')
+        else:
+            for s in self.name.split(' '):
+                if not s == '' and not s.isalnum():
+                    messages.append('No se ha especificado un nombre válido')
+                    break
 
-class ProtocolsManagement(QDialog):
+        if len(self.stimuli_list) == 0:
+            if len(messages) == 0:
+                messages.append('No se ha agregado ningún estímulo')
+            else:
+                messages.append('ni se ha agregado ningún estímulo')
+
+        if self.name in ProtocolsDBIndex():
+            QMessageBox.warning(self, 'Nombre incorrecto', 'Ya existe un protocolo con ese nombre. Debe '
+                                                           'seleccionar otro.')
+            return False
+        if len(messages) == 0:
+            return True
+        else:
+            s = 'Falta información:'
+            for i in messages:
+                s += '\n\t' + i
+            QMessageBox.warning(self, "Datos insuficientes", s)
+            return False
+
+
+class ProtocolsListWidget(QTableWidget):
     def __init__(self, parent=None):
-        super(ProtocolsManagement, self).__init__(parent)
+        super(ProtocolsListWidget, self).__init__(parent)
+        self.setSelectionMode(QTableWidget.SingleSelection)
+        self.load_list()
+
+    def load_list(self):
+        ind = ProtocolsDBIndex()
+        self.setRowCount(len(ind))
+        self.setColumnCount(2)
+        self.setHorizontalHeaderLabels(['Nombre', 'Notas'])
+        for i in range(len(ind)):
+            protocol = ind.get_protocol(i)
+            name = QTableWidgetItem(protocol.name)
+            name.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            notes = QTableWidgetItem(protocol.notes)
+            notes.setFlags(Qt.NoItemFlags)
+            self.setItem(i, 0, name)
+            self.setItem(i, 1, notes)
+
+    def update_list(self):
+        self.clear()
+        # ind = ProtocolsDBIndex()
+        # for p in ind:
+        #     notes = ind.get_protocol(p).notes
+        #     lwi = QListWidgetItem()
+        #     lwi.setText(p + "\t---\t" + notes)
+        #     self.addItem(lwi)
+        self.load_list()
+
+    def selected(self) -> str:
+        selected = self.selectedItems()
+        if len(selected) == 0:
+            QMessageBox.warning(self, "Error de selección",
+                                "Debe seleccionar al menos un protocolo.")
+            return None
+        name = selected[0].text()
+        return name
+
+
+class ProtocolsManagementDialog(QDialog):
+    def __init__(self, parent=None):
+        super(ProtocolsManagementDialog, self).__init__(parent)
         self.setWindowTitle('Gestión de Protocolos')
 
         self.main_layout = QVBoxLayout()
         self.protocols_layout = QVBoxLayout()
         self.buttons_layout = QHBoxLayout()
 
-        self.label = QLabel('Protocolos\t\t\tNotas')
+        self.label = QLabel('Protocolos')
 
-        self.protocols_list = QListWidget()
-        self.update_list()
+        self.protocols_list = ProtocolsListWidget()
         self.protocols_layout.addWidget(self.protocols_list)
 
         self.add_protocol_button = QPushButton()
-        self.add_protocol_button.setIcon(QIcon(join('icons', 'add_protocol.svg')))
+        self.add_protocol_button.setIcon(QIcon(join('icons', 'add.svg')))
         self.add_protocol_button.setIconSize(QSize(20, 20))
         self.add_protocol_button.setToolTip('Agregar protocolo')
         self.add_protocol_button.clicked.connect(self.add_protocol)
 
         self.remove_protocol_button = QPushButton()
-        self.remove_protocol_button.setIcon(QIcon(join('icons', 'remove_protocol.svg')))
+        self.remove_protocol_button.setIcon(QIcon(join('icons', 'delete.svg')))
         self.remove_protocol_button.setIconSize(QSize(20, 20))
         self.remove_protocol_button.setToolTip('Eliminar protocolo')
         self.remove_protocol_button.clicked.connect(self.remove_protocol)
 
-        self.start_test_button = QPushButton('Start test')
-        self.start_test_button.setIcon(QIcon(join('icons', 'start_record.svg')))
-        self.start_test_button.setIconSize(QSize(20, 20))
-        self.start_test_button.setToolTip('Comenzar a registrar una prueba')
-        self.start_test_button.clicked.connect(self.start_test)
+        self.clone_protocol_button = QPushButton()
+        self.clone_protocol_button.setIcon(QIcon(join('icons', 'clone.svg')))
+        self.clone_protocol_button.setIconSize(QSize(20, 20))
+        self.clone_protocol_button.setToolTip('Clonar protocolo')
+        self.clone_protocol_button.clicked.connect(self.clone_protocol)
 
         self.buttons_layout.addWidget(self.add_protocol_button)
         self.buttons_layout.addWidget(self.remove_protocol_button)
-        self.buttons_layout.addWidget(self.start_test_button)
+        self.buttons_layout.addWidget(self.clone_protocol_button)
 
         self.main_layout.addWidget(self.label)
         self.main_layout.addLayout(self.protocols_layout)
         self.main_layout.addLayout(self.buttons_layout)
         self.setLayout(self.main_layout)
 
-        self.stimulator = None
-
-    def start_test(self):
-        selected = self.protocols_list.selectedItems()
-        if len(selected) == 0:
-            QMessageBox.warning(self, "Error de selección",
-                                "Debe seleccionar un protocolo.")
-            return
-        name = selected[0].text().split('\t')[0]
-        ind = ProtocolsDBIndex()
-        protocol = ind.get_protocol(name)
-
-        self.stimulator = StimulatorWidget(protocol)
-        self.stimulator.show_stimulator()
-
     def add_protocol(self):
         cpw = CreateProtocolWidget(self)
         cpw.exec()
-        self.update_list()
+        self.protocols_list.update_list()
 
     def remove_protocol(self):
-        selected = self.protocols_list.selectedItems()
-        if len(selected) == 0:
-            QMessageBox.warning(self, "Error de selección",
-                                "Debe seleccionar un protocolo.")
+        name = self.protocols_list.selected()
+        if name is None:
             return
-        name = selected[0].text().split('\t')[0]
+
+        msgbox = QMessageBox(QMessageBox.Question, 'Confirmación de eliminación',
+                             'Está a punto de eliminar un prtocolo. Esta acción no puede deshacerse.', parent=self)
+        msgbox.setInformativeText("¿Desea eliminar el protocolo?")
+        save = QPushButton('Eliminar')
+        msgbox.addButton(save, QMessageBox.AcceptRole)
+        msgbox.addButton(QPushButton('Cancelar'), QMessageBox.RejectRole)
+        msgbox.setDefaultButton(save)
+        msgbox.setParent(self)
+
+        if msgbox.exec_() == QMessageBox.RejectRole:
+            return
+
         ind = ProtocolsDBIndex()
         ind.remove_protocol(name)
-        self.update_list()
+        self.protocols_list.update_list()
 
-    def update_list(self):
-        self.protocols_list.clear()
+    def clone_protocol(self):
+        name = self.protocols_list.selected()
+        if name is None:
+            return
         ind = ProtocolsDBIndex()
-        for p in ind:
-            notes = ind.get_protocol(p).notes
-            lwi = QListWidgetItem()
-            lwi.setText(p + "\t---\t" + notes)
-            self.protocols_list.addItem(lwi)
+        protocol = ind.get_protocol(name)
+        cpw = CreateProtocolWidget(self)
+        cpw.setWindowTitle('Clonar protocolo')
+        cpw.protocol_name.setText(protocol.name)
+        cpw.protocol_notes.setText(protocol.notes)
+        cpw.protocol_distance.setValue(protocol.distance)
+        for stimulus in protocol.stimuli:
+            cpw.stimuli_list.append(stimulus)
+            stimulus_widget = StimulusWidget(stimulus)
+            cpw.v_stimuli_layout.addWidget(stimulus_widget)
+            stimulus_widget.delete_stimulus.clicked.connect(cpw.delete_stimulus)
+            stimulus_widget.edit_stimulus.clicked.connect(cpw.edit_stimulus)
+
+        cpw.exec_()
+        self.protocols_list.update_list()
 
 
 class RepaintThread(QThread):
     paintStimulus = pyqtSignal()
     stopStimulus = pyqtSignal()
+    FRECUENCY = 1000 / 20
 
     def __init__(self, stimulus):
-        QThread.__init__(self)
+        super(RepaintThread, self).__init__()
         self.stimulus = stimulus
+        self.time = QTime()
 
     def run(self):
-        # time = QTime()
-        # time.start()
-        while self.stimulus.duration > 0:
+        self.time.start()
+        while self.stimulus.duration > self.time.elapsed():
             self.paintStimulus.emit()
-            delay = self.get_delay()
-            # print("Time elapsed: %d ms" % time.elapsed())
-            self.msleep(delay)
-            # time.restart()
-            self.stimulus.duration -= delay
+            self.msleep(self.get_delay())
+        print('stimulator ends on ', str(self.time.elapsed() / 1000), ' seconds.')
         self.stopStimulus.emit()
 
     def get_delay(self):
@@ -446,11 +608,32 @@ class RepaintThread(QThread):
             real_duration = self.stimulus.fixation_duration + (random.randrange(
                 self.stimulus.variation * 2)) - self.stimulus.variation
             return real_duration
+        elif type(self.stimulus) == PursuitStimulus:
+            return 1000 / self.FRECUENCY
         else:
-            return 8
+            raise ValueError('El estímulo no es de un tipo válido')
+
+
+class StimulusAdquirerThread(QThread):
+    set_block = pyqtSignal()
+
+    def __init__(self):
+        super(StimulusAdquirerThread, self).__init__()
+
+    def run(self):
+        while True:
+            # print('StimulusAdquirerThread.run called')
+            self.set_block.emit()
+            self.msleep(1)
 
 
 class StimulatorWidget(QWidget):
+    stimulus_begin = pyqtSignal(int)
+    read_stimulus = pyqtSignal(list)
+    stimulus_end = pyqtSignal()
+    record_end = pyqtSignal()
+    _block = None
+
     def __init__(self, protocol: Protocol, parent=None):
         super(StimulatorWidget, self).__init__(parent)
         self.screen = QDesktopWidget().screenGeometry(1)
@@ -466,38 +649,59 @@ class StimulatorWidget(QWidget):
 
         self.stimulus = None
         self.sac_shift_factor = 1
-        self.time_since_start = 0
+        self.timer = QTime()
         self.semi_length = 0
         self.thread = None
+        self.stimulus_adquirer_thread = None
         self.should_paint = True
         self.previous_point = [0, 0]
         self.current_point = []
 
-        sti = protocol.stimuli[0]
-        self.stop_paint()
+        self._block = zeros(20, dtype=int16)
+        self.block_size = 0
 
-    def get_shift(self):
+    def get_shift(self, to_show=True):
         if type(self.stimulus) == SaccadicStimulus:
-            self.sac_shift_factor *= -1
+            if to_show:
+                self.sac_shift_factor *= -1
             diff_sac = tan(radians(self.stimulus.amplitude)) * self.distance
             return diff_sac * self.sac_shift_factor
         else:
             time_for_round = self.stimulus.amplitude / (self.stimulus.velocity / 1000)
-            # alpha = (self.current_stimulus.velocity / 1000) * (self.time_since_start % time_for_round)
-            # if int(self.time_since_start / time_for_round) % 2 == 1:
+            # alpha = (self.current_stimulus.velocity / 1000) * (self.timer.elapsed() % time_for_round)
+            # if int(self.timer.elapsed() / time_for_round) % 2 == 1:
             #     alpha = self.current_stimulus.amplitude - alpha
             # print(alpha)
             # diff = -self.distance * tan(radians(self.current_stimulus.amplitude / 2 - alpha))
             pixels = 2 * self.semi_length / self.pixel_size
             pixels_per_ms = pixels / time_for_round
-            t = self.time_since_start % time_for_round
+            t = self.timer.elapsed() % time_for_round
             diff = pixels_per_ms * t
-            if int(self.time_since_start / time_for_round) % 2 == 1:
+            if int(self.timer.elapsed() / time_for_round) % 2 == 1:
                 diff -= pixels / 2
             else:
                 diff = pixels / 2 - diff
-            self.time_since_start += 8
+            # self.time_since_start += 8
             return diff
+
+    def get_block(self):
+        # print('***stimulator.get_block called')
+        block = self._block.copy()
+        if self.block_size >= 20:
+            print('----', self.block_size)
+        self.block_size = 0
+        self._block.fill(0)
+        return block
+
+    def _set_block(self):
+        # print('stimulator._set_block called and failed')
+        x = self.screen.width() / 2 - 15 + self.get_shift()
+        if self.block_size >= 20:
+            # print('----', self.block_size)
+            self.block_size += 1
+            return
+        self._block[self.block_size] = x
+        self.block_size += 1
 
     def paintEvent(self, event):
         qp = QPainter(self)
@@ -520,6 +724,11 @@ class StimulatorWidget(QWidget):
         # self.update(self.current_point[0] - 15, self.current_point[1], 60, 32)
 
     def stop_paint(self):
+        self.stimulus_adquirer_thread.terminate()
+        self.stimulus_end.emit()
+        # if self.stimulus_adquirer_thread is not None:
+
+        print('stimulus_adquirer_thread.terminate() called')
         self.should_paint = False
         self.update()
         if len(self.protocol.stimuli) > 0:
@@ -530,17 +739,25 @@ class StimulatorWidget(QWidget):
             self.protocol.stimuli.remove(stimulus)
             self.paint_stimulus(stimulus)
         else:
+            self.record_end.emit()
             self.close()
+            QMessageBox.information(None, "Aviso",
+                                    "Fin de la prueba")
 
     def paint_stimulus(self, stimulus: Stimulus):
         self.stimulus = stimulus
         self.stimulus.duration *= 1000
         self.sac_shift_factor = 1
-        self.time_since_start = 0
+        self.timer.restart()
         self.semi_length = tan(radians(self.stimulus.amplitude / 2)) * self.distance / 2
 
         self.thread = RepaintThread(self.stimulus)
+        self.stimulus_adquirer_thread = StimulusAdquirerThread()
+        self.stimulus_adquirer_thread.set_block.connect(self._set_block)
+        self.stimulus_begin.emit(self.stimulus.duration / 1000)
+        print('stimulus_begin signal emitted')
         self.thread.start()
+        self.stimulus_adquirer_thread.start()
         self.thread.paintStimulus.connect(self.show_paint)
         self.thread.stopStimulus.connect(self.stop_paint)
         self.should_paint = True
@@ -549,12 +766,20 @@ class StimulatorWidget(QWidget):
         self.current_point = [self.screen.width() / 2 - 15 + self.get_shift(), self.screen.height() / 2]
 
     def show_stimulator(self):
-        if QDesktopWidget().numScreens() is 1:
-            QMessageBox.warning(self, "Múltiples pantallas requeridas",
-                                "Para ejecutar esta funcionalidad se necesita otro monitor. " +
-                                "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
-        else:
-            self.showFullScreen()
+        # if QDesktopWidget().numScreens() is 1:
+        #     QMessageBox.warning(self, "Múltiples pantallas requeridas",
+        #                         "Para ejecutar esta funcionalidad se necesita otro monitor. " +
+        #                         "Conecte uno e intente de nuevo configurándolo como una pantalla extendida.")
+        #     self.thread.quit()
+        # else:
+        if len(self.protocol.stimuli) > 0:
+            # show dialog, delay
+            QMessageBox.information(None, "Aviso",
+                                    "Comenzar prueba")
+            stimulus = self.protocol.stimuli[0]
+            self.protocol.stimuli.remove(stimulus)
+            self.paint_stimulus(stimulus)
+        self.showFullScreen()
 
 
 class WorkspaceSettingsWidget(QWidget):
@@ -675,38 +900,235 @@ class SettingsDialog(QDialog):
         self.pages_widget.addWidget(widget)
 
 
+class IntroductionPage(QWizardPage):
+    def __init__(self, parent: QWidget = None):
+        super(IntroductionPage, self).__init__(parent)
+
+        self.setTitle('Introducción')
+        self.setSubTitle('Bienvenidos al asistente para grabar un registro. Este ayudante le guiará'
+                         ' a través del proceso de introducción de los datos necesarios para comenzar.')
+
+
+class RecordPage(QWizardPage):
+    def __init__(self,  parent=None):
+        super(RecordPage, self).__init__(parent)
+
+        self.setTitle('Datos del registro')
+
+        self.record_name = QLineEdit()
+        form_layout = QFormLayout()
+        form_layout.addRow('Nombre del registro', self.record_name)
+        self.setLayout(form_layout)
+
+    def validatePage(self):
+        name = self.record_name.text()
+        if name == '' or name.isspace():
+            QMessageBox.critical(self,
+                                 'Datos del registro',
+                                 'Debe introducir un nombre válido para la prueba:\n'
+                                 'solo caracteres alfanuméricos.')
+            return False
+
+        for s in name.split(' '):
+            if not s == '' and not s.isalnum():
+                QMessageBox.critical(self,
+                                     'Datos del registro',
+                                     'Debe introducir un nombre válido para la prueba.')
+                return False
+
+        ind = RecordsDBIndex()
+        if name in ind:
+            QMessageBox.critical(self,
+                                 'Datos del registro',
+                                 'Ya existe un registro con ese nombre.')
+            return False
+
+        return True
+
+
+class SetSubjectPage(QWizardPage):
+    def __init__(self, parent=None):
+        super(SetSubjectPage, self).__init__(parent)
+
+        self.setTitle('Datos del sujeto')
+        self.subject_parameters = SubjectParametersWidget(self)
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.subject_parameters)
+        self.setLayout(main_layout)
+
+    def validatePage(self):
+        if len(self.subject_parameters.first_name.text()) == 0:
+            QMessageBox.critical(self,
+                                 'Datos del sujeto',
+                                 'Debe introducir un nombre válido para el sujeto')
+            return False
+        return True
+
+
+class SelectProtocolPage(QWizardPage):
+    def __init__(self, parent=None):
+        super(SelectProtocolPage, self).__init__(parent)
+
+        self.setTitle('Selección de protocolo')
+
+        self.protocols_list = ProtocolsListWidget()
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.protocols_list)
+        self.setLayout(main_layout)
+
+    def validatePage(self):
+        if self.protocols_list.selected() is None:
+            return False
+        return True
+
+
+class ConfirmationPage(QWizardPage):
+    def __init__(self, parent=None):
+        super(ConfirmationPage, self).__init__(parent)
+
+        self.setTitle('Listo para comenzar')
+        self.setSubTitle('Los datos han sido introducidos correctamente. Pulse \"Comenzar\" para empezar a '
+                         'grabar el registro.')
+
+
+class StartRecordWizard(QWizard):
+    _introduction_page = None
+    _record_page = None
+    _subject_page = None
+    _protocol_page = None
+    _confirmation_page = None
+    _output_file_label = None
+    _subject = None
+
+    def __init__(self, parent: QWidget=None):
+        super(StartRecordWizard, self).__init__(parent)
+
+        self.setButtonText(QWizard.BackButton, 'Anterior')
+        self.setButtonText(QWizard.NextButton, 'Siguiente')
+        self.setButtonText(QWizard.FinishButton, 'Comenzar')
+
+        self._introduction_page = IntroductionPage()
+        self._record_page = RecordPage()
+        self._subject_page = SetSubjectPage()
+        self._protocol_page = SelectProtocolPage()
+        self._confirmation_page = ConfirmationPage()
+
+        self.addPage(self._introduction_page)
+        self.addPage(self._record_page)
+        self.addPage(self._subject_page)
+        self.addPage(self._protocol_page)
+        self.addPage(self._confirmation_page)
+
+        self.button(QWizard.FinishButton).pressed.connect(self.start_record)
+
+    def start_record(self):
+        self.make_subject()
+
+    def make_subject(self):
+        info = dict()
+        info['first_name'] = self._subject_page.subject_parameters.first_name.text()
+        info['last_name'] = self._subject_page.subject_parameters.last_name.text()
+        info['code'] = -1
+        info['gender'] = self._subject_page.subject_parameters.gender.currentIndex()
+        info['status'] = self._subject_page.subject_parameters.status.currentIndex()
+        info['molecular_diagnose'] = self._subject_page.subject_parameters.molecular_diagnose.text()
+        info['clinical_diagnose'] = self._subject_page.subject_parameters.clinical_diagnose.text()
+        info['handedness'] = self._subject_page.subject_parameters.handedness.currentIndex()
+        info['family'] = self._subject_page.subject_parameters.family.text()
+        info['generation'] = self._subject_page.subject_parameters.generation.text()
+        rd = self._subject_page.subject_parameters.register_date.date()
+        reg_date = datetime(rd.year(), rd.month(), rd.day())
+        info['register_date'] = reg_date.toordinal()
+        bd = self._subject_page.subject_parameters.born_date.date()
+        born_date = datetime(bd.year(), bd.month(), bd.day())
+        info['born_date'] = born_date.toordinal()
+        info['comments'] = self._subject_page.subject_parameters.comments.toPlainText()
+        self._subject = Subject(info=info)
+
+    @property
+    def record_name(self) -> str:
+        return self._record_page.record_name.text()
+
+    @property
+    def subject(self) -> Subject:
+        return self._subject
+
+    @property
+    def protocol_name(self) -> str:
+        return self._protocol_page.protocols_list.selected()
+
+
+class Controller(QObject):
+    storager = None
+    stimulator = None
+    adquirer = None
+    stop_record = pyqtSignal()
+    new_adquirer_created = pyqtSignal()
+    read_all_data = pyqtSignal(ndarray)
+
+    def __init__(self, record_name, protocol_name, subject):
+        super(Controller, self).__init__()
+        self.storager = Storager(record_name, protocol_name, subject)
+        self.read_all_data.connect(self.storager.receive_data)
+
+        ind = ProtocolsDBIndex()
+        self.protocol = ind.get_protocol(protocol_name)
+
+    def start_test(self):
+        self.storager.start()
+
+        self.stimulator = StimulatorWidget(self.protocol)
+
+        self.stimulator.stimulus_begin.connect(self.start_adquirer)
+        self.stimulator.stimulus_end.connect(self.storager.on_stimulus_end)
+        self.stimulator.stimulus_end.connect(self.on_stimulus_end)
+        # self.stimulator.record_end.connect(self.storager.on_record_end)
+        self.stimulator.record_end.connect(self.on_record_end)
+
+        self.stimulator.show_stimulator()
+
+    def start_adquirer(self, timelimit: int):
+        print('Controller.start_adquirer called. timelimit =', timelimit)
+        serial_port = user_settings.value('serial_port', '')
+        self.adquirer = Adquirer(port=serial_port, timelimit=timelimit)
+        self.new_adquirer_created.emit()
+        self.adquirer.read_data.connect(self.get_all_data)
+        self.adquirer.start()
+
+    def get_all_data(self, block) -> ndarray:
+        print('Controller.get_all_data called')
+        data = zeros([20, 3], dtype=int16)
+        stimulus_block = self.stimulator.get_block()
+        # print('stimulus_block =', stimulus_block)
+
+        for i in range(20):
+            data[i][0] = block[i][0]
+            data[i][1] = block[i][1]
+            data[i][2] = stimulus_block[i]
+
+        self.read_all_data.emit(data)
+
+    def on_record_end(self):
+        self.stop_record.emit()
+        self.storager.on_record_end()
+        self.storager.quit()
+
+    def on_stimulus_end(self):
+        print('adquirer should ends on ', self.adquirer.countlimit*0.02, ' seconds')
+        self.adquirer.stop()
+        # self.adquirer = None
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         self.showMaximized()
         self.setWindowTitle('NSNyst Controller')
-        self.protocols_management = ProtocolsManagement(self)
-        # self.stimulator = StimulatorWidget()
-        # self.stimulator.show_stimulator()
-
-        # r = Record('Rec_name', 'protocol')
-        # s = Record('another rec', 'prot name')
-        # t = Test()
-        # u = Test()
-        # t[Test.HORIZONTAL_CHANNEL] = [1, 2, 3, 4]
-        # u[Test.VERTICAL_CHANNEL] = [4.0, 2, 3, 4]
-        # r.add_test(t)
-        # s.add_test(u)
-        # db = RecordsDBIndex()
-        # db.add_record(r)
-        # db.add_record(s)
-        # db.write_to_json()
-        # db = None
-        # db_loaded = RecordsDBIndex()
-        # for r in db_loaded:
-        #     # print("\nRecord: ", r.name, ' ********* ', len(r.tests_names), ' tests.')
-        #     for test_name in r:
-        #         te = r.get_test(test_name)
-        #         # print(te.channels, te.test_type.name)
 
         self.tool_bar = QToolBar()
         self.tool_bar.setIconSize(QSize(48, 48))
 
+        self.protocols_management = ProtocolsManagementDialog(self)
         self.protocols_action = QAction(QIcon(join('icons', 'protocols.svg')), 'Gestionar protocolos', self.tool_bar)
         self.protocols_action.triggered.connect(self.protocols_management.exec)
         self.tool_bar.addAction(self.protocols_action)
@@ -716,9 +1138,13 @@ class MainWindow(QMainWindow):
         self.settings_action.triggered.connect(self.settings_dialog.exec)
         self.tool_bar.addAction(self.settings_action)
 
+        self.start_record_wizard_action = QAction(QIcon(join('icons', 'start.svg')),
+                                                  'Asistente para comenzar a grabar un registro', self.tool_bar)
+        self.start_record_wizard_action.triggered.connect(self.start_record_wizard)
+        self.tool_bar.addAction(self.start_record_wizard_action)
+
         self.addToolBar(self.tool_bar)
 
-        serial_port = user_settings.value('serial_port', '')
         visualization_time_limit = user_settings.value('signals_renderer_time_limit', 10)
 
         self.central_widget = QWidget()
@@ -745,17 +1171,18 @@ class MainWindow(QMainWindow):
         self.button_list_layout.addWidget(self.renderer_time_decrease_button)
         self.button_list_layout.addWidget(self.renderer_time_increase_button)
 
+        # self.adquirer = Adquirer('COM1', timelimit=40)
+        # self.adquirer.read_data.connect(self.signals_renderer.addSamples)
+        # self.adquirer.start()
+
         self.central_widget_layout.addWidget(self.button_list_widget)
 
         self.setCentralWidget(self.central_widget)
 
-        self.adquirer = Adquirer(port=serial_port, timelimit=115)
-        self.adquirer.read_data.connect(self.signals_renderer.addSamples)
-        self.adquirer.start()
+        self.controller = None
 
-    def closeEvent(self, *args, **kwargs):
-        self.stimulator.close()
-        self.adquirer.stop()
+    # def closeEvent(self, *args, **kwargs):
+    #     self.adquirer.stop()
 
     def renderer_time_decrease(self):
         if self.signals_renderer.timeLimit > 5:
@@ -764,5 +1191,25 @@ class MainWindow(QMainWindow):
     def renderer_time_increase(self):
         self.signals_renderer.timeLimit += 5
 
-    def closeEvent(self, *args, **kwargs):
-        self.stimulator.close()
+    def start_record_wizard(self):
+        srw = StartRecordWizard(self)
+        if srw.exec() == QWizard.Accepted:
+            self.controller = Controller(srw.record_name, srw.protocol_name, srw.subject)
+            # self.controller.read_all_data.connect(self.signals_renderer.addSamples)
+            self.controller.new_adquirer_created.connect(self.new_adquirer)
+            self.controller.start_test()
+            self.controller.stop_record.connect(self.stop_record)
+
+    def stop_record(self):
+        self.controller = None
+        # ind = RecordsDBIndex()
+        # rec = ind.get_record(2)
+        # for i in range(len(rec.tests_names)):
+        #     t = rec.get_test(0)
+        #     pprint(t.test_type.name)
+        #     for k in t.channels.keys():
+        #         print(k, t.channels[k])
+
+    def new_adquirer(self):
+        # self.controller.adquirer.read_data.connect(self.signals_renderer.addSamples)
+        self.controller.read_all_data.connect(self.signals_renderer.addSamples)
