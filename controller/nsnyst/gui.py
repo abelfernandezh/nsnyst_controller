@@ -10,11 +10,11 @@ from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QL
     QBrush, QFileDialog, QSizePolicy, QIcon, QTableWidget, QTableWidgetItem, QWizard, QWizardPage, QDateEdit
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime, QObject
 import artwork.icons as fa
-from stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
-from core import user_settings
-from visualization import SignalsRenderer
-from adquisition import Adquirer, SerialHelper
-from storage import RecordsDBIndex, ProtocolsDBIndex, Subject, Storager
+from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
+from nsnyst.core import user_settings
+from nsnyst.visualization import SignalsRenderer
+from nsnyst.adquisition import Adquirer, SerialHelper
+from nsnyst.storage import RecordsDBIndex, ProtocolsDBIndex, Subject, Storager
 
 
 class SubjectParametersWidget(QWidget):

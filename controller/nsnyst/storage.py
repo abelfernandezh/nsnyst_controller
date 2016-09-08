@@ -4,9 +4,9 @@ import json
 from os.path import dirname, join
 from os import makedirs, remove, rmdir
 from PyQt4.QtCore import QThread
-from core import user_settings
+from nsnyst.core import user_settings
 import pickle
-from stimulation import StimulusType, Protocol, SaccadicStimulus, PursuitStimulus, Channel
+from nsnyst.stimulation import StimulusType, Protocol, SaccadicStimulus, PursuitStimulus, Channel
 from collections import OrderedDict
 
 

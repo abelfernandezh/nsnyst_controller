@@ -61,7 +61,7 @@ class Adquirer(QThread):
         """ Start adquisition
         """
         self.exit_code = Adquirer.OK_EXIT_CODE
-        serial = Serial('COM1',
+        serial = Serial(self.port,
                         baudrate=Adquirer.SERIAL_BAUDRATE,
                         timeout=Adquirer.SERIAL_TIMEOUT)
 
