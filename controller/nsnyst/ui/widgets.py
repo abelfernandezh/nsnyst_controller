@@ -316,7 +316,7 @@ class CreateProtocolWidget(QDialog):
         self.f_layout.addRow('Notas', self.protocol_notes)
         self.f_layout.addRow('Distancia', self.protocol_distance)
 
-        self.add_stimulus_button = QPushButton(QIcon(':add.svg'), '')
+        self.add_stimulus_button = QPushButton(QIcon(':plus.svg'), '')
         self.add_stimulus_button.clicked.connect(self.add_stimulus)
         self.save_button = QPushButton(QIcon(':save.svg'), '')
         self.save_button.clicked.connect(self.save_button_pressed)
@@ -510,7 +510,7 @@ class ProtocolsManagementDialog(QDialog):
         self.protocols_layout.addWidget(self.protocols_list)
 
         self.add_protocol_button = QPushButton()
-        self.add_protocol_button.setIcon(QIcon(':add.svg'))
+        self.add_protocol_button.setIcon(QIcon(':plus.svg'))
         self.add_protocol_button.setIconSize(QSize(20, 20))
         self.add_protocol_button.setToolTip('Agregar protocolo')
         self.add_protocol_button.clicked.connect(self.add_protocol)
@@ -1165,13 +1165,12 @@ class MainWindow(QMainWindow):
         self.button_list_widget.setLayout(self.button_list_layout)
         self.button_list_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
-        # TODO: poner iconos a los botones
-        self.renderer_time_decrease_button = QPushButton("-")
-        # self.renderer_time_decrease_button.setIcon(QIcon(":"))
+        self.renderer_time_decrease_button = QPushButton()
+        self.renderer_time_decrease_button.setIcon(QIcon(":minus.svg"))
         self.renderer_time_decrease_button.clicked.connect(self.renderer_time_decrease)
 
-        self.renderer_time_increase_button = QPushButton("+")
-        # self.renderer_time_increase_button.setIcon(QIcon(":add.svg"))
+        self.renderer_time_increase_button = QPushButton()
+        self.renderer_time_increase_button.setIcon(QIcon(":plus.svg"))
         self.renderer_time_increase_button.clicked.connect(self.renderer_time_increase)
 
         self.button_list_layout.addStretch()

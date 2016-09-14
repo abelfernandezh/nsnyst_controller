@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
-    	<file alias="add.svg">add.svg</file>
+    	<file alias="minus.svg">minus.svg</file>
+    	<file alias="plus.svg">plus.svg</file>
         <file alias="cancel.svg">cancel.svg</file>
         <file alias="clone.svg">clone.svg</file>
         <file alias="delete.svg">delete.svg</file>
