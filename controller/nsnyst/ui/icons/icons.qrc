@@ -1,0 +1,15 @@
+<RCC>
+    <qresource prefix="/">
+    	<file alias="add.svg">add.svg</file>
+        <file alias="cancel.svg">cancel.svg</file>
+        <file alias="clone.svg">clone.svg</file>
+        <file alias="delete.svg">delete.svg</file>
+        <file alias="protocols.svg">protocols.svg</file>
+        <file alias="remove.svg">remove.svg</file>
+        <file alias="save.svg">save.svg</file>
+        <file alias="select_path.svg">select_path.svg</file>
+        <file alias="settings.svg">settings.svg</file>
+        <file alias="start.svg">start.svg</file>
+        <file alias="workspace.svg">workspace.svg</file>
+    </qresource>
+</RCC>
