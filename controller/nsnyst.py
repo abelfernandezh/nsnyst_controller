@@ -1,6 +1,6 @@
 from sys import argv
 from PyQt4.QtGui import QApplication
-from nsnyst.gui import MainWindow
+from nsnyst.ui.widgets import MainWindow
 
 if __name__ == '__main__':
     app = QApplication(argv)

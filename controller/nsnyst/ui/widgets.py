@@ -9,13 +9,13 @@ from PyQt4.QtGui import QMainWindow, QToolBar, QDialog, QAction, QFormLayout, QL
     QListWidget, QDialogButtonBox, QListWidgetItem, QDesktopWidget, QMessageBox, QPainter, QColor, \
     QBrush, QFileDialog, QSizePolicy, QIcon, QTableWidget, QTableWidgetItem, QWizard, QWizardPage, QDateEdit
 from PyQt4.QtCore import QSize, Qt, QPointF, QThread, pyqtSignal, QTime, QObject
-import artwork.icons as fa
+
 from nsnyst.stimulation import Channel, SaccadicStimulus, PursuitStimulus, Protocol, StimulusType, Stimulus
 from nsnyst.core import user_settings
-from nsnyst.visualization import SignalsRenderer
 from nsnyst.adquisition import Adquirer, SerialHelper
 from nsnyst.storage import RecordsDBIndex, ProtocolsDBIndex, Subject, Storager
-
+from nsnyst.ui.visualization import SignalsRenderer
+import nsnyst.ui.icons
 
 class SubjectParametersWidget(QWidget):
     def __init__(self, parent):
@@ -188,7 +188,7 @@ class CreateStimuliWidget(QDialog):
 
         self.button_box = QDialogButtonBox()
 
-        self.button_box.addButton('', QDialogButtonBox.AcceptRole).setIcon(QIcon(join('icons', 'save.svg')))
+        self.button_box.addButton('', QDialogButtonBox.AcceptRole).setIcon(QIcon(':save.svg'))
         self.button_box.addButton('', QDialogButtonBox.RejectRole).setText('Cancelar')
 
         self.main_layout.addLayout(self.h_layout)
@@ -316,9 +316,9 @@ class CreateProtocolWidget(QDialog):
         self.f_layout.addRow('Notas', self.protocol_notes)
         self.f_layout.addRow('Distancia', self.protocol_distance)
 
-        self.add_stimulus_button = QPushButton(QIcon(join('icons', 'add.svg')), '')
+        self.add_stimulus_button = QPushButton(QIcon(':plus.svg'), '')
         self.add_stimulus_button.clicked.connect(self.add_stimulus)
-        self.save_button = QPushButton(QIcon(join('icons', 'save.svg')), '')
+        self.save_button = QPushButton(QIcon(':save.svg'), '')
         self.save_button.clicked.connect(self.save_button_pressed)
 
         self.buttons_layout.addWidget(self.save_button)
@@ -510,19 +510,19 @@ class ProtocolsManagementDialog(QDialog):
         self.protocols_layout.addWidget(self.protocols_list)
 
         self.add_protocol_button = QPushButton()
-        self.add_protocol_button.setIcon(QIcon(join('icons', 'add.svg')))
+        self.add_protocol_button.setIcon(QIcon(':plus.svg'))
         self.add_protocol_button.setIconSize(QSize(20, 20))
         self.add_protocol_button.setToolTip('Agregar protocolo')
         self.add_protocol_button.clicked.connect(self.add_protocol)
 
         self.remove_protocol_button = QPushButton()
-        self.remove_protocol_button.setIcon(QIcon(join('icons', 'delete.svg')))
+        self.remove_protocol_button.setIcon(QIcon(':delete.svg'))
         self.remove_protocol_button.setIconSize(QSize(20, 20))
         self.remove_protocol_button.setToolTip('Eliminar protocolo')
         self.remove_protocol_button.clicked.connect(self.remove_protocol)
 
         self.clone_protocol_button = QPushButton()
-        self.clone_protocol_button.setIcon(QIcon(join('icons', 'clone.svg')))
+        self.clone_protocol_button.setIcon(QIcon(':clone.svg'))
         self.clone_protocol_button.setIconSize(QSize(20, 20))
         self.clone_protocol_button.setToolTip('Clonar protocolo')
         self.clone_protocol_button.clicked.connect(self.clone_protocol)
@@ -798,7 +798,7 @@ class WorkspaceSettingsWidget(QWidget):
         self.workspace_path = QLineEdit(user_settings.value('workspace_path', dirname(__file__)))
         self.workspace_path.setReadOnly(True)
 
-        self.search_path_button = QPushButton(QIcon(join('icons', 'select_path.svg')), "Seleccionar")
+        self.search_path_button = QPushButton(QIcon(':select_path.svg'), "Seleccionar")
         self.search_path_button.clicked.connect(self._search_path)
 
         self.container_layout = QHBoxLayout()
@@ -887,7 +887,7 @@ class SettingsDialog(QDialog):
 
         self.setLayout(self._main_layout)
 
-        self.add_item("Entorno de trabajo", QIcon(join('icons', 'workspace.svg')), WorkspaceSettingsWidget())
+        self.add_item("Entorno de trabajo", QIcon(':workspace.svg'), WorkspaceSettingsWidget())
 
     def accepted(self):
         for i in range(self.pages_widget.count()):
@@ -1135,16 +1135,16 @@ class MainWindow(QMainWindow):
         self.tool_bar.setIconSize(QSize(48, 48))
 
         self.protocols_management = ProtocolsManagementDialog(self)
-        self.protocols_action = QAction(QIcon(join('icons', 'protocols.svg')), 'Gestionar protocolos', self.tool_bar)
+        self.protocols_action = QAction(QIcon(':protocols.svg'), 'Gestionar protocolos', self.tool_bar)
         self.protocols_action.triggered.connect(self.protocols_management.exec)
         self.tool_bar.addAction(self.protocols_action)
 
         self.settings_dialog = SettingsDialog()
-        self.settings_action = QAction(QIcon(join('icons', 'settings.svg')), 'Configuración', self.tool_bar)
+        self.settings_action = QAction(QIcon(':settings.svg'), 'Configuración', self.tool_bar)
         self.settings_action.triggered.connect(self.settings_dialog.exec)
         self.tool_bar.addAction(self.settings_action)
 
-        self.start_record_wizard_action = QAction(QIcon(join('icons', 'start.svg')),
+        self.start_record_wizard_action = QAction(QIcon(':start.svg'),
                                                   'Asistente para comenzar a grabar un registro', self.tool_bar)
         self.start_record_wizard_action.triggered.connect(self.start_record_wizard)
         self.tool_bar.addAction(self.start_record_wizard_action)
@@ -1166,11 +1166,11 @@ class MainWindow(QMainWindow):
         self.button_list_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
         self.renderer_time_decrease_button = QPushButton()
-        self.renderer_time_decrease_button.setIcon(fa.icon('fa.minus'))
+        self.renderer_time_decrease_button.setIcon(QIcon(":minus.svg"))
         self.renderer_time_decrease_button.clicked.connect(self.renderer_time_decrease)
 
         self.renderer_time_increase_button = QPushButton()
-        self.renderer_time_increase_button.setIcon(fa.icon('fa.plus'))
+        self.renderer_time_increase_button.setIcon(QIcon(":plus.svg"))
         self.renderer_time_increase_button.clicked.connect(self.renderer_time_increase)
 
         self.button_list_layout.addStretch()
